@@ -214,6 +214,8 @@ Under the hood, `RequestsInspectorHttpOverrides.install()` sets a global `HttpOv
 
 Clear the log from the "Images" tab's "Clear All" action, or programmatically with `ImageLogController.clear()`.
 
+For a full technical walkthrough of exactly how this hooks into `dart:io` without touching the response body or double-counting other traffic, see [IMAGE_LOGGING.md](IMAGE_LOGGING.md).
+
 ---
 
 ## Filtering & search
