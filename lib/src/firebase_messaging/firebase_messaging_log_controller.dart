@@ -4,7 +4,7 @@ import 'firebase_messaging_event.dart';
 
 /// A lightweight global log of Firebase Messaging events, kept separate from
 /// [InspectorController]'s HTTP request list on purpose (same pattern as
-/// [SseLogController]/[ImageLogController]) and merged back into the
+/// [SseLogController]/[FileLogController]) and merged back into the
 /// Inspector's "All" timeline for display.
 ///
 /// Populated automatically by [FirebaseMessagingInspector] when

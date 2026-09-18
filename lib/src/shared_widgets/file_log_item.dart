@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 
-import '../image_request_details.dart';
+import '../file_request_details.dart';
 import '../inspector_controller.dart';
 import 'inspector_theme.dart';
 
-class ImageLogItemWidget extends StatelessWidget {
-  const ImageLogItemWidget({
+class FileLogItemWidget extends StatelessWidget {
+  const FileLogItemWidget({
     super.key,
     required this.details,
     required this.isDarkMode,
   });
 
-  final ImageRequestDetails details;
+  final FileRequestDetails details;
   final bool isDarkMode;
+
+  bool get _isImage =>
+      details.contentType?.toLowerCase().startsWith('image/') ?? false;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +27,7 @@ class ImageLogItemWidget extends StatelessWidget {
       borderRadius: BorderRadius.circular(InspectorTheme.radius),
       child: InkWell(
         borderRadius: BorderRadius.circular(InspectorTheme.radius),
-        onTap: () => InspectorController().selectImage(details),
+        onTap: () => InspectorController().selectFile(details),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(InspectorTheme.radius),
@@ -36,29 +39,7 @@ class ImageLogItemWidget extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(6.0),
-                child: details.isError
-                    ? Container(
-                        width: 36.0,
-                        height: 36.0,
-                        color:
-                            InspectorTheme.statusError.withValues(alpha: 0.15),
-                        child: const Icon(
-                          Icons.broken_image_outlined,
-                          size: 18.0,
-                          color: InspectorTheme.statusError,
-                        ),
-                      )
-                    : Image.network(
-                        details.url,
-                        width: 36.0,
-                        height: 36.0,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 36.0,
-                          height: 36.0,
-                          color: Colors.grey.withValues(alpha: 0.2),
-                        ),
-                      ),
+                child: _buildThumbnail(),
               ),
               const SizedBox(width: 10.0),
               Expanded(
@@ -79,7 +60,7 @@ class ImageLogItemWidget extends StatelessWidget {
                     Text(
                       details.isError
                           ? (details.error ?? 'HTTP ${details.statusCode}')
-                          : '${details.contentType ?? 'image'} · ${_formatBytes(details.contentLength)}',
+                          : '${details.contentType ?? 'file'} · ${_formatBytes(details.contentLength)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -106,9 +87,74 @@ class ImageLogItemWidget extends StatelessWidget {
     );
   }
 
+  Widget _buildThumbnail() {
+    if (details.isError) {
+      return Container(
+        width: 36.0,
+        height: 36.0,
+        color: InspectorTheme.statusError.withValues(alpha: 0.15),
+        child: const Icon(
+          Icons.error_outline,
+          size: 18.0,
+          color: InspectorTheme.statusError,
+        ),
+      );
+    }
+
+    if (_isImage) {
+      return Image.network(
+        details.url,
+        width: 36.0,
+        height: 36.0,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 36.0,
+          height: 36.0,
+          color: Colors.grey.withValues(alpha: 0.2),
+        ),
+      );
+    }
+
+    return Container(
+      width: 36.0,
+      height: 36.0,
+      color: Colors.grey.withValues(alpha: 0.2),
+      child: Icon(
+        FileTypeIcon.forContentType(details.contentType),
+        size: 18.0,
+        color: isDarkMode ? Colors.white70 : Colors.black54,
+      ),
+    );
+  }
+
   String _formatBytes(int? bytes) {
     if (bytes == null) return '';
     if (bytes < 1024) return '$bytes B';
-    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+  }
+}
+
+/// Picks a representative icon for a file's `Content-Type`, since not every
+/// file (video, PDF, font, archive, ...) can be shown as a thumbnail.
+class FileTypeIcon {
+  FileTypeIcon._();
+
+  static IconData forContentType(String? contentType) {
+    final type = contentType?.toLowerCase() ?? '';
+    if (type.startsWith('video/')) return Icons.videocam_outlined;
+    if (type.startsWith('audio/')) return Icons.audiotrack_outlined;
+    if (type.startsWith('font/') || type.contains('font')) {
+      return Icons.text_fields_outlined;
+    }
+    if (type.contains('pdf')) return Icons.picture_as_pdf_outlined;
+    if (type.contains('zip') ||
+        type.contains('tar') ||
+        type.contains('gzip') ||
+        type.contains('compressed')) {
+      return Icons.folder_zip_outlined;
+    }
+    if (type.startsWith('text/')) return Icons.description_outlined;
+    return Icons.insert_drive_file_outlined;
   }
 }

@@ -61,9 +61,10 @@ class _RequestsInspectorState extends State<RequestsInspector> {
   @override
   void initState() {
     super.initState();
-    // Automatically observes image network traffic (e.g. Image.network) via
-    // dart:io's HttpOverrides, the same mechanism Flutter DevTools' network
-    // view uses - no changes required from the app using this package.
+    // Automatically observes non-API network file traffic (images, videos,
+    // PDFs, fonts, downloads, ...) via dart:io's HttpOverrides, the same
+    // mechanism Flutter DevTools' network view uses - no changes required
+    // from the app using this package.
     if (widget._enabled) RequestsInspectorHttpOverrides.install();
 
     // Automatically attaches to FirebaseMessaging.instance's streams when

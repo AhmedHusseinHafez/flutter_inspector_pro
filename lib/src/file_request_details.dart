@@ -1,7 +1,8 @@
-/// A lightweight record of a single network image load, kept separate from
-/// [RequestDetails] so image traffic doesn't crowd the "All" requests tab.
-class ImageRequestDetails {
-  const ImageRequestDetails({
+/// A lightweight record of a single non-API network file load (images,
+/// videos, PDFs, fonts, downloads, ...), kept separate from [RequestDetails]
+/// so this traffic doesn't crowd the "All" requests tab.
+class FileRequestDetails {
+  const FileRequestDetails({
     required this.url,
     required this.sentTime,
     this.statusCode,

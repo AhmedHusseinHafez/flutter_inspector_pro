@@ -90,7 +90,7 @@ class InspectorController extends ChangeNotifier {
   RequestDetails? _selectedRequest;
   SseConnectionLog? _selectedSseConnection;
   FirebaseMessagingEvent? _selectedFirebaseMessagingEvent;
-  ImageRequestDetails? _selectedImage;
+  FileRequestDetails? _selectedFile;
 
   // Bumped whenever _requestsList is mutated, used to cache filteredRequestsList
   // so it isn't recomputed on every unrelated notifyListeners() (e.g. dark mode toggle).
@@ -132,7 +132,7 @@ class InspectorController extends ChangeNotifier {
   FirebaseMessagingEvent? get selectedFirebaseMessagingEvent =>
       _selectedFirebaseMessagingEvent;
 
-  ImageRequestDetails? get selectedImage => _selectedImage;
+  FileRequestDetails? get selectedFile => _selectedFile;
 
   bool get isSearchVisible => _isSearchVisible;
 
@@ -215,12 +215,12 @@ class InspectorController extends ChangeNotifier {
     if (_selectedRequest == value &&
         _selectedSseConnection == null &&
         _selectedFirebaseMessagingEvent == null &&
-        _selectedImage == null &&
+        _selectedFile == null &&
         _selectedTab == 1) return;
     _selectedRequest = value;
     _selectedSseConnection = null;
     _selectedFirebaseMessagingEvent = null;
-    _selectedImage = null;
+    _selectedFile = null;
     _selectedTab = 1;
     _updateTotalMatches();
     notifyListeners();
@@ -230,12 +230,12 @@ class InspectorController extends ChangeNotifier {
     if (_selectedSseConnection?.id == connection.id &&
         _selectedRequest == null &&
         _selectedFirebaseMessagingEvent == null &&
-        _selectedImage == null &&
+        _selectedFile == null &&
         _selectedTab == 1) return;
     _selectedSseConnection = connection;
     _selectedRequest = null;
     _selectedFirebaseMessagingEvent = null;
-    _selectedImage = null;
+    _selectedFile = null;
     _selectedTab = 1;
     notifyListeners();
   }
@@ -244,23 +244,23 @@ class InspectorController extends ChangeNotifier {
     if (_selectedFirebaseMessagingEvent?.id == event.id &&
         _selectedRequest == null &&
         _selectedSseConnection == null &&
-        _selectedImage == null &&
+        _selectedFile == null &&
         _selectedTab == 1) return;
     _selectedFirebaseMessagingEvent = event;
     _selectedRequest = null;
     _selectedSseConnection = null;
-    _selectedImage = null;
+    _selectedFile = null;
     _selectedTab = 1;
     notifyListeners();
   }
 
-  void selectImage(ImageRequestDetails image) {
-    if (_selectedImage == image &&
+  void selectFile(FileRequestDetails file) {
+    if (_selectedFile == file &&
         _selectedRequest == null &&
         _selectedSseConnection == null &&
         _selectedFirebaseMessagingEvent == null &&
         _selectedTab == 1) return;
-    _selectedImage = image;
+    _selectedFile = file;
     _selectedRequest = null;
     _selectedSseConnection = null;
     _selectedFirebaseMessagingEvent = null;

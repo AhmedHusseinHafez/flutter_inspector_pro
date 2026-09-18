@@ -1,6 +1,6 @@
 # flutter_inspector_pro
 
-An in-app network inspector for Flutter apps. Long-press anywhere on screen and get a live, on-device timeline of everything your app talks to over the network — REST (`Dio` and `package:http`), **GraphQL** (queries, mutations, and WebSocket subscriptions), **Server-Sent Events (SSE)**, and **network images** (logged automatically, no code changes needed) — with request/response detail views, request/response interception ("Stopper"), search & filtering, and one-tap share-to-Slack. No external proxy tool (Charles, Proxyman, mitmproxy) required.
+An in-app network inspector for Flutter apps. Long-press anywhere on screen and get a live, on-device timeline of everything your app talks to over the network — REST (`Dio` and `package:http`), **GraphQL** (queries, mutations, and WebSocket subscriptions), **Server-Sent Events (SSE)**, and **network files** (images, videos, PDFs, fonts, downloads, ... — logged automatically, no code changes needed) — with request/response detail views, request/response interception ("Stopper"), search & filtering, and one-tap share-to-Slack. No external proxy tool (Charles, Proxyman, mitmproxy) required.
 
 > **📌 Provenance note — please read.** This package is a fork built on top of [`requests_inspector`](https://github.com/Abdelazeem777/requests_inspector) by **Abdelazeem Kuratem** and its contributors. The original author of *this* fork built its architecture and feature set independently, but later found that upstream's GraphQL integration was a stronger implementation than what existed here, and adopted it rather than keep maintaining a separate, weaker one. Upstream's GraphQL link (`GraphQLInspectorLink`), the base inspector shell, the Dio interceptor, and the Stopper feature all originate there — **this fork does not claim to have invented that code.** Everything else described below as "added in this fork" (the `package:http` client, SSE support, search/filtering, HAR export, the current UI, and more) was built independently on top of that adopted base. See [Credits & Relationship to the Upstream Project](#-credits--relationship-to-the-upstream-project) for the full, itemized breakdown, and give the [Contributors](#-contributors) section below a look — it lists everyone who has worked on upstream.
 
@@ -19,7 +19,7 @@ An in-app network inspector for Flutter apps. Long-press anywhere on screen and 
   - [GraphQL — graphql_flutter](#4-graphql--graphql_flutter)
   - [Server-Sent Events / streaming logs](#5-server-sent-events--streaming-logs)
   - [Stopper — intercept requests & responses](#6-stopper--intercept-requests--responses)
-  - [Image network logging (automatic)](#7-image-network-logging-automatic)
+  - [File network logging (automatic)](#7-file-network-logging-automatic)
   - [Firebase Messaging Inspector (opt-in)](#8-firebase-messaging-inspector-opt-in)
 - [Filtering & search](#filtering--search)
 - [Sharing & exporting requests](#sharing--exporting-requests)
@@ -41,8 +41,8 @@ It's aimed at day-to-day development and QA: reproducing a bug on a real device/
 - **`InspectorController`** — a singleton `ChangeNotifier` (exposed via `provider`) that holds the in-memory list of logged requests, the currently selected request/SSE connection, search/filter state, and the Stopper's enabled/filter state. It's the single source of truth the whole inspector UI reads from.
 - **`RequestsInspector`** — the widget you wrap your app in. It creates the `InspectorController`, listens for the long-press gesture, and pushes the `Inspector` screen (a `Scaffold` with an "All" timeline tab and a "Details" tab) on top of your navigator when triggered.
 - **Per-transport loggers, all opt-in** — instead of one global hook that intercepts everything (which would be fragile and easy to double-count), each supported transport has its own small wrapper you explicitly add: `RequestsInspectorInterceptor` (Dio), `HttpInspectorClient` (`package:http`), `GraphQLInspectorLink` (GraphQL), and `SseLogController.log(...)` (SSE/streaming, called manually since there's no single standard SSE client in the Flutter ecosystem). Anything not covered by one of these can still be logged by calling `InspectorController().addNewRequest(...)` directly.
-- **The one exception: image logging is automatic, not opt-in** — `RequestsInspectorHttpOverrides` installs a global `dart:io` `HttpOverrides` (the same mechanism Flutter DevTools' network view uses) that observes every `HttpClient` request in the app, including the one `Image.network`/`NetworkImage` uses internally. It only reads response *headers* (never the body stream) and only records entries whose `Content-Type` starts with `image/`, into a separate `ImageLogController` — so it can't slow down image loading and never mixes into, or double-counts against, the opt-in loggers above. See [Image network logging](#7-image-network-logging-automatic).
-- **Presentation** — the inspector screen itself doesn't know or care which transport a given entry came from; it renders whatever `RequestDetails` objects are in the controller's list (plus SSE connections from `SseLogController` and Firebase Messaging events from `FirebaseMessagingLogController`, both merged into the same timeline and distinguished by a small colored badge). Image loads are the one category kept out of that merged timeline on purpose, in their own "Images" tab, since image traffic tends to be high-volume and would just be noise in "All".
+- **The one exception: file logging is automatic, not opt-in** — `RequestsInspectorHttpOverrides` installs a global `dart:io` `HttpOverrides` (the same mechanism Flutter DevTools' network view uses) that observes every `HttpClient` request in the app, including the one `Image.network`/`NetworkImage` uses internally. It only reads response *headers* (never the body stream) and records any entry whose `Content-Type` doesn't look like a plain API response (JSON/XML/HTML/form-encoded), into a separate `FileLogController` — covering images, video, audio, PDFs, fonts, archives, and other downloads, so it can't slow down loading and never mixes into, or double-counts against, the opt-in loggers above. See [File network logging](#7-file-network-logging-automatic).
+- **Presentation** — the inspector screen itself doesn't know or care which transport a given entry came from; it renders whatever `RequestDetails` objects are in the controller's list (plus SSE connections from `SseLogController` and Firebase Messaging events from `FirebaseMessagingLogController`, both merged into the same timeline and distinguished by a small colored badge). File loads are the one category kept out of that merged timeline on purpose, in their own "Files" tab, since that traffic tends to be high-volume and would just be noise in "All".
 - **Firebase Messaging is opt-in and fully decoupled** — `FirebaseMessagingInspector` auto-attaches to `FirebaseMessaging.instance`'s streams only when you pass `firebaseMessaging: FirebaseMessagingInspectorConfig(enabled: true)` to `RequestsInspector`. Unlike the per-transport loggers above, no wrapper object is needed in your own code for foreground events - see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in) for what that means for background messages specifically.
 
 ## Features
@@ -51,7 +51,7 @@ It's aimed at day-to-day development and QA: reproducing a bug on a real device/
 - **REST over `package:http`** — `HttpInspectorClient`, a drop-in `http.Client`/`BaseClient` wrapper. *(added in this fork)*
 - **GraphQL over `graphql`/`graphql_flutter`** — `GraphQLInspectorLink`, covering HTTP queries/mutations and WebSocket subscriptions, with variables shown separately from the query document. *(from upstream)*
 - **Server-Sent Events / streaming logs** — `SseLogController`, a lightweight global log sink that groups raw log lines into per-connection timelines (grouped whenever a line contains a `CONNECTING -> <url>` marker), merged into the same "All" timeline as HTTP/GraphQL traffic. *(added in this fork)*
-- **Automatic network image logging** — every `Image.network`/`NetworkImage` load (and any other image fetched over `dart:io`'s `HttpClient`) is logged to its own "Images" tab automatically, with zero code changes, via a global `HttpOverrides` — the same mechanism Flutter DevTools' network view uses. *(added in this fork)*
+- **Automatic network file logging** — every `Image.network`/`NetworkImage` load and any other non-API file (video, audio, PDF, font, archive, download, ...) fetched over `dart:io`'s `HttpClient` is logged to its own "Files" tab automatically, with zero code changes, via a global `HttpOverrides` — the same mechanism Flutter DevTools' network view uses. *(added in this fork)*
 - **Firebase Messaging Inspector (opt-in)** — automatically captures `FirebaseMessaging.onMessage`, `onMessageOpenedApp`, and `getInitialMessage()` with no listener code required, plus a helper for logging `onBackgroundMessage`. Shows message ID, sender ID, `from`, sent time, TTL, collapse key, message type, data payload, and Android/APNs notification details, merged into the same "All" timeline. Off by default; data payload keys that look sensitive are redacted automatically. *(added in this fork; see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in))*
 - **Manual logging** — push a `RequestDetails` into `InspectorController` for any transport not covered above (this is also how the `QUERY` pseudo-method is logged in the example app).
 - **`RequestMethod.QUERY`** — an extra pseudo-method for read-only requests that carry a body (distinct from `GET`), alongside `GET`/`POST`/`PUT`/`PATCH`/`DELETE` and the internally-used `WS`. *(added in this fork)*
@@ -205,20 +205,32 @@ InspectorController().setResponseStopperFilterStatusCode(200);
 
 With `requestStopperEnabled`/`responseStopperEnabled` on, a matching in-flight request/response pauses and `RequestStopperEditorDialog`/`ResponseStopperEditorDialog` is shown (via your `navigatorKey`), letting you edit the body/headers/status before it continues.
 
-### 7. Image network logging (automatic)
+### 7. File network logging (automatic)
 
-There's nothing to call here — this is the one integration that isn't opt-in. As soon as your app is wrapped in `RequestsInspector`, every network image load anywhere in the app (via `Image.network`, `NetworkImage`, or any other code using `dart:io`'s `HttpClient`) shows up in the Inspector's **"Images"** tab: URL, content type, size, status, and a thumbnail.
+There's nothing to call here — this is the one integration that isn't opt-in. As soon as your app is wrapped in `RequestsInspector`, every network *file* load anywhere in the app (via `Image.network`, `NetworkImage`, a direct `dart:io` `HttpClient` download, or any other code using `dart:io`'s `HttpClient`) shows up in the Inspector's **"Files"** tab: URL, content type, size, status, and a preview (a thumbnail for images, a type icon otherwise).
 
 ```dart
-// Nothing to change here - this already gets logged automatically:
+// Nothing to change here - these already get logged automatically:
 Image.network('https://example.com/avatar.png');
+await httpClient.getUrl(Uri.parse('https://example.com/report.pdf'));
 ```
 
-Under the hood, `RequestsInspectorHttpOverrides.install()` sets a global `HttpOverrides` that wraps every `HttpClient` created in the app and inspects each response's headers (never the body). Only responses whose `Content-Type` starts with `image/` are kept, and they're logged to `ImageLogController` — a separate store from `InspectorController`, so image traffic never crowds the "All" timeline or duplicates what `RequestsInspectorInterceptor`/`HttpInspectorClient` already log for API calls. If your app sets its own `HttpOverrides.global` (e.g. for certificate pinning), install this one afterwards, or expect `RequestsInspector` (which installs it in `initState`) to chain onto whatever override already exists at that point.
+This covers more than images — anything whose response doesn't look like a typical API call shows up here, for example:
 
-Clear the log from the "Images" tab's "Clear All" action, or programmatically with `ImageLogController.clear()`.
+| Kind of file | Example `Content-Type` |
+|---|---|
+| Images | `image/png`, `image/jpeg`, `image/webp` |
+| Video | `video/mp4` |
+| Audio | `audio/mpeg` |
+| PDFs / documents | `application/pdf` |
+| Fonts | `font/woff2` |
+| Archives / downloads | `application/zip`, `application/octet-stream` |
 
-For a full technical walkthrough of exactly how this hooks into `dart:io` without touching the response body or double-counting other traffic, see [IMAGE_LOGGING.md](IMAGE_LOGGING.md).
+Under the hood, `RequestsInspectorHttpOverrides.install()` sets a global `HttpOverrides` that wraps every `HttpClient` created in the app and inspects each response's headers (never the body). Responses that look like plain API traffic (`application/json`, `application/graphql`, `application/xml`/`text/xml`, `text/html`, `text/plain`, form-encoded) are skipped, and everything else is logged to `FileLogController` — a separate store from `InspectorController`, so this traffic never crowds the "All" timeline or duplicates what `RequestsInspectorInterceptor`/`HttpInspectorClient` already log for API calls. If your app sets its own `HttpOverrides.global` (e.g. for certificate pinning), install this one afterwards, or expect `RequestsInspector` (which installs it in `initState`) to chain onto whatever override already exists at that point.
+
+Clear the log from the "Files" tab's "Clear All" action, or programmatically with `FileLogController.clear()`.
+
+For a full technical walkthrough of exactly how this hooks into `dart:io` without touching the response body or double-counting other traffic, see [FILE_LOGGING.md](FILE_LOGGING.md).
 
 ### 8. Firebase Messaging Inspector (opt-in)
 
@@ -312,7 +324,7 @@ This section exists to be transparent about which parts of this codebase were or
   - The `RequestMethod.QUERY` pseudo-method.
   - `onInspectorOpened` / `onInspectorClosed` callbacks.
   - Search and filtering (URL search, method/status-code/item-type filters, in-request text search with match navigation).
-  - Automatic network image logging — `RequestsInspectorHttpOverrides`/`ImageLogController` and the "Images" tab (via a global `dart:io` `HttpOverrides`, the same mechanism Flutter DevTools' network view uses).
+  - Automatic network file logging — `RequestsInspectorHttpOverrides`/`FileLogController` and the "Files" tab (via a global `dart:io` `HttpOverrides`, the same mechanism Flutter DevTools' network view uses).
   - Removal of the shake-to-open gesture and its `sensors_plus` dependency — long-press is now the only way to open the inspector.
   - The current inspector UI (colors, layout, the merged "All" timeline that includes SSE connections, the Slack-branded share button, the redesigned filter/clear dialogs).
   - Migrating off deprecated `share_plus` APIs (`Share.share`/`Share.shareXFiles`) to the current `SharePlus.instance.share(ShareParams(...))` API, and off `WillPopScope` to `PopScope`.
@@ -448,7 +460,7 @@ To add yourself as a contributor, simply follow the contribution guidelines and 
 - [x] ~~HAR export (text and `.har` file)~~ — removed; sharing is now a single direct cURL+log format (see [Sharing & exporting requests](#sharing--exporting-requests)).
 - [x] Inspector open/close callbacks.
 - [x] `RequestMethod.QUERY`.
-- [x] Automatic network image logging (`RequestsInspectorHttpOverrides`, "Images" tab).
+- [x] Automatic network file logging (`RequestsInspectorHttpOverrides`, "Files" tab).
 - [ ] Firebase-backed logging/observability integration.
 - [ ] A UI-level toggle for Stopper again (currently programmatic-only — see [Stopper](#6-stopper--intercept-requests--responses)).
 - [ ] Additional HTTP client integrations.

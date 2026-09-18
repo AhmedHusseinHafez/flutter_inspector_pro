@@ -5,8 +5,8 @@ import 'package:requests_inspector/src/filters_dialog.dart';
 import 'package:requests_inspector/src/shared_widgets/empty_state.dart';
 import 'package:requests_inspector/src/shared_widgets/firebase_messaging_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/firebase_messaging_item.dart';
-import 'package:requests_inspector/src/shared_widgets/image_log_item.dart';
-import 'package:requests_inspector/src/shared_widgets/image_request_details_page.dart';
+import 'package:requests_inspector/src/shared_widgets/file_log_item.dart';
+import 'package:requests_inspector/src/shared_widgets/file_request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/inspector_theme.dart';
 import 'package:requests_inspector/src/shared_widgets/request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/request_item.dart';
@@ -99,15 +99,15 @@ class Inspector extends StatelessWidget {
       Selector<InspectorController, int>(
         selector: (_, c) => c.selectedTab,
         builder: (context, selectedTab, _) {
-          // Images tab only has image logs to clear; every other tab clears
+          // Files tab only has file logs to clear; every other tab clears
           // the full inspector state so "Clear All" behaves consistently
           // wherever it's shown.
           final clearAllButton = selectedTab == 2
               ? _buildClearAllButton(
                   context,
                   isDarkMode: isDarkMode,
-                  message: 'This will clear all logged image requests.',
-                  onYes: ImageLogController.clear,
+                  message: 'This will clear all logged file requests.',
+                  onYes: FileLogController.clear,
                 )
               : _buildClearAllButton(
                   context,
@@ -117,7 +117,7 @@ class Inspector extends StatelessWidget {
                   onYes: () {
                     InspectorController().clearAllRequests();
                     SseLogController.clear();
-                    ImageLogController.clear();
+                    FileLogController.clear();
                     FirebaseMessagingLogController.clear();
                   },
                 );
@@ -187,7 +187,7 @@ class Inspector extends StatelessWidget {
             onTap: () => InspectorController().selectedTab = 1,
           ),
           _buildTabItem(
-            title: 'Images',
+            title: 'Files',
             isDarkMode: isDarkMode,
             isSelected: selectedTab == 2,
             onTap: () => InspectorController().selectedTab = 2,
@@ -242,31 +242,31 @@ class Inspector extends StatelessWidget {
       return _buildAllRequests(isDarkMode: isDarkMode);
     }
     if (selectedTab == 2) {
-      return [_buildImagesTab(isDarkMode)];
+      return [_buildFilesTab(isDarkMode)];
     }
     return [_buildDetailsTab(isDarkMode)];
   }
 
-  Widget _buildImagesTab(bool isDarkMode) {
+  Widget _buildFilesTab(bool isDarkMode) {
     return Expanded(
-      child: ValueListenableBuilder<List<ImageRequestDetails>>(
-        valueListenable: ImageLogController.images,
-        builder: (context, images, _) {
-          if (images.isEmpty) {
+      child: ValueListenableBuilder<List<FileRequestDetails>>(
+        valueListenable: FileLogController.files,
+        builder: (context, files, _) {
+          if (files.isEmpty) {
             return EmptyState(
-              icon: Icons.image_outlined,
-              title: 'No image requests yet',
+              icon: Icons.insert_drive_file_outlined,
+              title: 'No file requests yet',
               message:
-                  'Images fetched by your app will show up here as they\'re loaded.',
+                  'Files (images, videos, PDFs, fonts, downloads, ...) fetched by your app will show up here as they\'re loaded.',
               isDarkMode: isDarkMode,
             );
           }
           return ListView.separated(
             padding: const EdgeInsets.all(12.0),
-            itemCount: images.length,
+            itemCount: files.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8.0),
-            itemBuilder: (context, index) => ImageLogItemWidget(
-              details: images[index],
+            itemBuilder: (context, index) => FileLogItemWidget(
+              details: files[index],
               isDarkMode: isDarkMode,
             ),
           );
@@ -301,12 +301,12 @@ class Inspector extends StatelessWidget {
                   );
                 }
 
-                return Selector<InspectorController, ImageRequestDetails?>(
-                  selector: (_, c) => c.selectedImage,
-                  builder: (context, selectedImage, ____) {
-                    if (selectedImage != null) {
-                      return ImageRequestDetailsPage(
-                        image: selectedImage,
+                return Selector<InspectorController, FileRequestDetails?>(
+                  selector: (_, c) => c.selectedFile,
+                  builder: (context, selectedFile, ____) {
+                    if (selectedFile != null) {
+                      return FileRequestDetailsPage(
+                        file: selectedFile,
                         isDarkMode: isDarkMode,
                       );
                     }

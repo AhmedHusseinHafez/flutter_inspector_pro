@@ -1,26 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../file_request_details.dart';
 import '../helpers/inspector_helper.dart';
-import '../image_request_details.dart';
+import 'file_log_item.dart';
 import 'inspector_theme.dart';
 
-class ImageRequestDetailsPage extends StatelessWidget {
-  const ImageRequestDetailsPage({
+class FileRequestDetailsPage extends StatelessWidget {
+  const FileRequestDetailsPage({
     super.key,
-    required this.image,
+    required this.file,
     required this.isDarkMode,
   });
 
-  final ImageRequestDetails image;
+  final FileRequestDetails file;
   final bool isDarkMode;
+
+  bool get _isImage =>
+      file.contentType?.toLowerCase().startsWith('image/') ?? false;
 
   @override
   Widget build(BuildContext context) {
     final textColor = isDarkMode ? Colors.white : Colors.black87;
     final subtitleColor = isDarkMode ? Colors.white54 : Colors.black54;
     final statusColor =
-        image.isError ? InspectorTheme.statusError : InspectorTheme.statusOk;
+        file.isError ? InspectorTheme.statusError : InspectorTheme.statusOk;
 
     return Expanded(
       child: ListView(
@@ -36,7 +40,7 @@ class ImageRequestDetailsPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6.0),
                 ),
                 child: Text(
-                  image.statusCode?.toString() ?? 'Error',
+                  file.statusCode?.toString() ?? 'Error',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11.0,
@@ -48,7 +52,7 @@ class ImageRequestDetailsPage extends StatelessWidget {
           ),
           const SizedBox(height: 8.0),
           Text(
-            image.url,
+            file.url,
             style: TextStyle(
               fontSize: 16.0,
               fontWeight: FontWeight.bold,
@@ -59,13 +63,13 @@ class ImageRequestDetailsPage extends StatelessWidget {
           _buildPreview(),
           const SizedBox(height: 16.0),
           _buildMetadataSection(textColor, subtitleColor),
-          if (image.isError) ...[
+          if (file.isError) ...[
             const SizedBox(height: 16.0),
             _sectionLabel('Error', subtitleColor),
             const SizedBox(height: 8.0),
             _buildCard(
               child: SelectableText(
-                image.error ?? 'HTTP ${image.statusCode}',
+                file.error ?? 'HTTP ${file.statusCode}',
                 style: TextStyle(
                   fontSize: 13.0,
                   color: InspectorTheme.statusError,
@@ -81,15 +85,30 @@ class ImageRequestDetailsPage extends StatelessWidget {
   }
 
   Widget _buildPreview() {
-    if (image.isError) {
+    if (file.isError) {
       return _buildCard(
         child: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 24.0),
             child: Icon(
-              Icons.broken_image_outlined,
+              Icons.error_outline,
               size: 40.0,
               color: InspectorTheme.statusError.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!_isImage) {
+      return _buildCard(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24.0),
+            child: Icon(
+              FileTypeIcon.forContentType(file.contentType),
+              size: 40.0,
+              color: isDarkMode ? Colors.white54 : Colors.black45,
             ),
           ),
         ),
@@ -103,7 +122,7 @@ class ImageRequestDetailsPage extends StatelessWidget {
         color: InspectorTheme.surface(isDarkMode),
         constraints: const BoxConstraints(maxHeight: 260.0),
         child: Image.network(
-          image.url,
+          file.url,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 24.0),
@@ -119,33 +138,33 @@ class ImageRequestDetailsPage extends StatelessWidget {
   }
 
   Widget _buildMetadataSection(Color textColor, Color subtitleColor) {
-    final sentTimeText = InspectorHelper.extractTimeText(image.sentTime);
+    final sentTimeText = InspectorHelper.extractTimeText(file.sentTime);
 
     return _buildCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _keyValueRow('Sent at', sentTimeText, textColor, subtitleColor),
-          if (image.receivedTime != null) ...[
+          if (file.receivedTime != null) ...[
             _keyValueRow(
               'Received at',
-              InspectorHelper.extractTimeText(image.receivedTime!),
+              InspectorHelper.extractTimeText(file.receivedTime!),
               textColor,
               subtitleColor,
             ),
             _keyValueRow(
               'Duration',
               InspectorHelper.calculateDuration(
-                  image.sentTime, image.receivedTime!),
+                  file.sentTime, file.receivedTime!),
               textColor,
               subtitleColor,
             ),
           ],
-          if (image.contentType != null)
+          if (file.contentType != null)
             _keyValueRow(
-                'Content type', image.contentType!, textColor, subtitleColor),
-          if (image.contentLength != null)
-            _keyValueRow('Size', _formatBytes(image.contentLength!), textColor,
+                'Content type', file.contentType!, textColor, subtitleColor),
+          if (file.contentLength != null)
+            _keyValueRow('Size', _formatBytes(file.contentLength!), textColor,
                 subtitleColor),
         ],
       ),
@@ -157,7 +176,7 @@ class ImageRequestDetailsPage extends StatelessWidget {
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: () {
-          Clipboard.setData(ClipboardData(text: image.url));
+          Clipboard.setData(ClipboardData(text: file.url));
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('URL copied to clipboard')),
           );

@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'image_log_controller.dart';
-import 'image_request_details.dart';
+import 'file_log_controller.dart';
+import 'file_request_details.dart';
 
 /// Installs a global [HttpOverrides] that observes every `dart:io`
 /// [HttpClient] request/response in the app - including the ones Flutter's
@@ -9,13 +9,21 @@ import 'image_request_details.dart';
 /// Flutter DevTools' network view relies on. No code changes are required
 /// from the app: wrapping it in `RequestsInspector` is enough.
 ///
-/// Only responses whose `Content-Type` looks like an image are recorded
-/// (into [ImageLogController], shown in the Inspector's "Images" tab) so
-/// this never duplicates or interferes with what the opt-in interceptors
-/// ([RequestsInspectorInterceptor], [HttpInspectorClient]) already log for
-/// plain API traffic. Only response *headers* are inspected - the response
-/// body stream itself is never read or buffered here, so this can't corrupt
-/// or slow down the actual image/data being loaded.
+/// Responses whose `Content-Type` doesn't look like a typical API response
+/// (JSON/XML/HTML/form-encoded) are recorded (into [FileLogController],
+/// shown in the Inspector's "Files" tab). That exclusion, not a
+/// file-type-specific one, is what keeps this from duplicating what the
+/// opt-in interceptors ([RequestsInspectorInterceptor], [HttpInspectorClient])
+/// already log for plain API traffic - Dio's default adapter also goes
+/// through `dart:io`'s [HttpClient], so without it every API call would be
+/// logged twice. Only response *headers* are inspected - the response body
+/// stream itself is never read or buffered here, so this can't corrupt or
+/// slow down the actual file/data being loaded.
+///
+/// Typical things that show up here: images (`image/*`), videos, audio,
+/// PDFs, fonts, archives (zip), and any other binary file/asset/download
+/// fetched over `dart:io`'s `HttpClient` that isn't already routed through
+/// the opt-in interceptors.
 class RequestsInspectorHttpOverrides extends HttpOverrides {
   RequestsInspectorHttpOverrides(this._previous);
 
@@ -54,34 +62,46 @@ class _ObservingHttpClient implements HttpClient {
 
   final HttpClient _inner;
 
+  /// Content-Type prefixes typical of plain API responses, which are
+  /// already logged by the opt-in interceptors. Anything else (images,
+  /// video, audio, PDFs, fonts, archives, octet-stream, ...) is treated as
+  /// a "file" and recorded here.
+  static const _apiContentTypePrefixes = [
+    'application/json',
+    'application/graphql',
+    'application/x-www-form-urlencoded',
+    'text/plain',
+    'text/html',
+    'text/xml',
+    'application/xml',
+  ];
+
   Future<HttpClientRequest> _observe(Future<HttpClientRequest> future) async {
     final request = await future;
     final sentTime = DateTime.now();
     request.done.then(
-      (response) => _maybeLog(request, response, sentTime),
+      (response) => _log(request, response, sentTime),
       onError: (_) {
-        // A failed image load with no response headers can't be classified
-        // as an image reliably, so it's intentionally not logged here to
-        // avoid guessing based on the URL alone.
+        // A failed load with no response headers can't be described
+        // reliably, so it's intentionally not logged here to avoid
+        // guessing based on the URL alone.
       },
     );
     return request;
   }
 
-  void _maybeLog(
+  void _log(
     HttpClientRequest request,
     HttpClientResponse response,
     DateTime sentTime,
   ) {
     try {
       final contentType = response.headers.value('content-type');
-      if (contentType == null ||
-          !contentType.toLowerCase().startsWith('image/')) {
-        return;
-      }
+      if (contentType == null || _looksLikeApiResponse(contentType)) return;
+
       final contentLengthHeader = response.headers.value('content-length');
-      ImageLogController.log(
-        ImageRequestDetails(
+      FileLogController.log(
+        FileRequestDetails(
           url: request.uri.toString(),
           statusCode: response.statusCode,
           contentType: contentType,
@@ -95,6 +115,12 @@ class _ObservingHttpClient implements HttpClient {
     } catch (_) {
       // Never let observation break the real request.
     }
+  }
+
+  bool _looksLikeApiResponse(String contentType) {
+    final normalized = contentType.toLowerCase();
+    return _apiContentTypePrefixes
+        .any((prefix) => normalized.startsWith(prefix));
   }
 
   @override

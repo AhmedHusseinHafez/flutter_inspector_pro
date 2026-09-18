@@ -1,8 +1,8 @@
-# How image request logging works
+# How file request logging works
 
-This is a technical walkthrough of `lib/src/image_http_overrides.dart` and its
-two small companions (`image_log_controller.dart`, `image_request_details.dart`)
-— the mechanism behind the Inspector's automatic "Images" tab. It exists
+This is a technical walkthrough of `lib/src/file_http_overrides.dart` and its
+two small companions (`file_log_controller.dart`, `file_request_details.dart`)
+— the mechanism behind the Inspector's automatic "Files" tab. It exists
 because this is the one integration in the package that *isn't* an opt-in
 wrapper you add yourself (unlike `RequestsInspectorInterceptor` for Dio or
 `HttpInspectorClient` for `package:http`), so it's worth explaining precisely
@@ -10,25 +10,42 @@ what it hooks into and why.
 
 ## The goal
 
-Log every network image `Image.network`/`NetworkImage` loads, automatically,
-with:
+Log every network *file* response (images, videos, audio, PDFs, fonts,
+archives, downloads, and any other binary asset — not just images), 
+automatically, with:
 
 - **Zero code changes** in the app using this package.
-- **No interference** with the actual image load — same speed, same bytes,
-  no risk of corrupting the image.
+- **No interference** with the actual load — same speed, same bytes, no risk
+  of corrupting the file.
 - **No double-counting** against the opt-in Dio/`http` interceptors, which
   already log plain API traffic.
-- A separate place to look (the "Images" tab), since image traffic is
+- A separate place to look (the "Files" tab), since this traffic is
   high-volume and would just be noise mixed into the main "All" timeline.
+
+### Examples of what shows up here
+
+| Kind of file | Typical `Content-Type` |
+|---|---|
+| Images | `image/png`, `image/jpeg`, `image/webp`, `image/svg+xml` |
+| Video | `video/mp4`, `video/quicktime` |
+| Audio | `audio/mpeg`, `audio/aac` |
+| Documents | `application/pdf` |
+| Fonts | `font/woff2`, `font/ttf` |
+| Archives / downloads | `application/zip`, `application/gzip`, `application/octet-stream` |
+
+Anything that looks like a plain API response (`application/json`,
+`application/graphql`, `application/xml`/`text/xml`, `text/html`,
+`text/plain`, `application/x-www-form-urlencoded`) is deliberately excluded —
+see "What gets logged, and why only headers" below.
 
 ## Why `HttpOverrides`, and not something else
 
-Flutter's `Image.network`/`NetworkImage` don't accept a custom HTTP client —
-internally, they just call `HttpClient()` from `dart:io` and fetch the bytes.
-There's no constructor parameter, no injectable client, nothing to wrap from
-the call site. So an opt-in wrapper (the pattern used for Dio and
-`package:http`) simply isn't available here — you can't hand `Image.network`
-a `HttpInspectorClient`.
+Flutter's `Image.network`/`NetworkImage` (and most other file loads apps make
+directly via `dart:io`) don't accept a custom HTTP client — internally, they
+just call `HttpClient()` from `dart:io` and fetch the bytes. There's no
+constructor parameter, no injectable client, nothing to wrap from the call
+site. So an opt-in wrapper (the pattern used for Dio and `package:http`)
+simply isn't available here.
 
 `dart:io` does give you exactly one global seam for this: `HttpOverrides`.
 
@@ -120,7 +137,7 @@ Future<HttpClientRequest> _observe(Future<HttpClientRequest> future) async {
   final request = await future;
   final sentTime = DateTime.now();
   request.done.then(
-    (response) => _maybeLog(request, response, sentTime),
+    (response) => _log(request, response, sentTime),
     onError: (_) { /* see "What doesn't get logged" below */ },
   );
   return request;
@@ -135,27 +152,35 @@ Future<HttpClientRequest> getUrl(Uri url) => _observe(_inner.getUrl(url));
 This is the key trick that keeps the whole thing non-invasive: `_observe`
 gets the **real** `HttpClientRequest` from the real inner client and returns
 that *exact same object*, unmodified, to whoever called `getUrl`/`get`/etc.
-(Flutter's image loader, in this case). It doesn't wrap or proxy the request
-object at all — it just also attaches its own listener to
-`request.done`, a `Future<HttpClientResponse>` that `dart:io` already exposes
-and that completes once the response headers are available. Listening to a
-`Future` doesn't consume it or stop anyone else from listening to the same
-completion — so the real caller's own `request.close()` (which is what
-actually sends the request and resolves that same future) works exactly as
-if this override didn't exist. Nothing about the request or response is
-touched, copied, or delayed.
+It doesn't wrap or proxy the request object at all — it just also attaches
+its own listener to `request.done`, a `Future<HttpClientResponse>` that
+`dart:io` already exposes and that completes once the response headers are
+available. Listening to a `Future` doesn't consume it or stop anyone else
+from listening to the same completion — so the real caller's own
+`request.close()` (which is what actually sends the request and resolves
+that same future) works exactly as if this override didn't exist. Nothing
+about the request or response is touched, copied, or delayed.
 
 ## What gets logged, and why only headers
 
 ```dart
-void _maybeLog(HttpClientRequest request, HttpClientResponse response, DateTime sentTime) {
+static const _apiContentTypePrefixes = [
+  'application/json',
+  'application/graphql',
+  'application/x-www-form-urlencoded',
+  'text/plain',
+  'text/html',
+  'text/xml',
+  'application/xml',
+];
+
+void _log(HttpClientRequest request, HttpClientResponse response, DateTime sentTime) {
   try {
     final contentType = response.headers.value('content-type');
-    if (contentType == null || !contentType.toLowerCase().startsWith('image/')) {
-      return;
-    }
+    if (contentType == null || _looksLikeApiResponse(contentType)) return;
+
     final contentLengthHeader = response.headers.value('content-length');
-    ImageLogController.log(ImageRequestDetails(
+    FileLogController.log(FileRequestDetails(
       url: request.uri.toString(),
       statusCode: response.statusCode,
       contentType: contentType,
@@ -169,25 +194,30 @@ void _maybeLog(HttpClientRequest request, HttpClientResponse response, DateTime 
 }
 ```
 
-Two deliberate choices here:
+Three deliberate choices here:
 
-1. **Only the `Content-Type` response header decides whether something is
-   "an image".** Not the request URL, not a file extension guess — the
-   actual header the server sent back. This is what makes the "no
-   double-counting" guarantee hold regardless of which client made the
-   request: if you fetch a JSON API response through Dio, it's already
-   logged by `RequestsInspectorInterceptor`, and this override sees it too
-   (since Dio's IO adapter also goes through `HttpClient()`) but silently
-   ignores it, because its `Content-Type` isn't `image/*`. Only genuine
-   image responses ever reach `ImageLogController.log(...)`.
-2. **The response body stream is never read.** `_maybeLog` only touches
+1. **The `Content-Type` response header decides what's "a file".** Not the
+   request URL, not a file extension guess — the actual header the server
+   sent back.
+2. **Typical API content-types are excluded, rather than only allowing
+   `image/*`.** This is what makes the "no double-counting" guarantee hold
+   regardless of which client made the request: if you fetch a JSON API
+   response through Dio, it's already logged by
+   `RequestsInspectorInterceptor`, and this override sees it too (since
+   Dio's IO adapter also goes through `HttpClient()`) but silently ignores
+   it, because its `Content-Type` matches one of the excluded API prefixes.
+   Everything else — images, video, audio, PDFs, fonts, archives,
+   `application/octet-stream`, and any other binary content-type not on that
+   list — is treated as a file and logged.
+3. **The response body stream is never read.** `_log` only touches
    `response.headers` and `response.statusCode` — both available synchronously
    the moment `request.done` resolves, before a single byte of the body has
    been consumed. There's no buffering, no `response.toList()`, nothing that
-   would compete with Flutter's own image decoder for the stream. This is
-   also why there's no thumbnail data cached anywhere by this mechanism —
-   the "Images" tab re-fetches the URL itself (via a plain `Image.network`)
-   to render a preview, it doesn't reuse bytes captured here.
+   would compete with the real consumer (e.g. Flutter's image decoder) for
+   the stream. This is also why there's no data cached anywhere by this
+   mechanism — the "Files" tab's image preview re-fetches the URL itself
+   (via a plain `Image.network`) to render a thumbnail, it doesn't reuse
+   bytes captured here; non-image files just show a type icon instead.
 
 The whole thing is also wrapped in a `try/catch` that swallows any exception
 silently — a bug in the logging path must never be able to break or delay a
@@ -195,36 +225,41 @@ real network request.
 
 ## What doesn't get logged
 
-- **Non-image responses** — by design, per above.
+- **API-shaped responses** (JSON/XML/HTML/plain text/form-encoded) — by
+  design, per above, since the opt-in interceptors already cover those.
+- **Responses with no `Content-Type` header** — there's no reliable signal
+  to classify them, so they're skipped rather than guessed.
 - **Failed requests with no response at all** (DNS failure, connection
   refused, timeout before headers arrive) — `request.done`'s `onError`
   callback fires, but at that point there's no `Content-Type` to check, so
-  there's genuinely no reliable signal that this *was* an image request.
+  there's genuinely no reliable signal about what this request was for.
   Guessing from the URL (e.g. a `.png` extension) was considered and
   rejected — a `/user/avatar` endpoint with no extension is a very common
-  image URL, and false positives/negatives either way would undermine the
-  "only real image responses show up here" guarantee. These failures are
-  silently dropped rather than logged incorrectly.
+  file URL, and false positives/negatives either way would undermine the
+  "only real, classifiable responses show up here" guarantee. These
+  failures are silently dropped rather than logged incorrectly.
 - **Anything on web.** `dart:io`'s `HttpOverrides`/`HttpClient` don't exist
   on Flutter web (it uses the browser's own networking stack instead), so
-  this mechanism is a no-op there. `Image.network` still works on web as
-  normal; it's just not observed by this package.
+  this mechanism is a no-op there. File loads still work on web as normal;
+  they're just not observed by this package.
 
 ## Where the data goes
 
-`ImageLogController` (`lib/src/image_log_controller.dart`) is a tiny global
-store — a capped `ValueNotifier<List<ImageRequestDetails>>` (200 entries max,
+`FileLogController` (`lib/src/file_log_controller.dart`) is a tiny global
+store — a capped `ValueNotifier<List<FileRequestDetails>>` (200 entries max,
 oldest dropped first), deliberately kept separate from `InspectorController`.
-The Inspector's "Images" tab (`lib/src/shared_widgets/inspector.dart`,
-`_buildImagesTab`) just listens to it directly and renders a list.
-`ImageLogController.clear()` (or the tab's own "Clear All" action) empties it.
+The Inspector's "Files" tab (`lib/src/shared_widgets/inspector.dart`,
+`_buildFilesTab`) just listens to it directly and renders a list.
+`FileLogController.clear()` (or the tab's own "Clear All" action) empties it.
 
 ## Summary of the file map
 
 | File | Role |
 |---|---|
-| `lib/src/image_http_overrides.dart` | `RequestsInspectorHttpOverrides` (the `HttpOverrides` subclass) + `_ObservingHttpClient` (the `HttpClient` wrapper that does the actual observing). |
-| `lib/src/image_log_controller.dart` | `ImageLogController` — the `ValueNotifier`-backed store the "Images" tab reads from. |
-| `lib/src/image_request_details.dart` | `ImageRequestDetails` — the plain data class for one logged image response. |
+| `lib/src/file_http_overrides.dart` | `RequestsInspectorHttpOverrides` (the `HttpOverrides` subclass) + `_ObservingHttpClient` (the `HttpClient` wrapper that does the actual observing). |
+| `lib/src/file_log_controller.dart` | `FileLogController` — the `ValueNotifier`-backed store the "Files" tab reads from. |
+| `lib/src/file_request_details.dart` | `FileRequestDetails` — the plain data class for one logged file response. |
 | `lib/src/requests_inspector_widget.dart` | Calls `RequestsInspectorHttpOverrides.install()` once, from `RequestsInspector`'s `initState()`. |
-| `lib/src/shared_widgets/inspector.dart` | The "Images" tab UI (`_buildImagesTab`) and its list item (`ImageLogItemWidget`). |
+| `lib/src/shared_widgets/inspector.dart` | The "Files" tab UI (`_buildFilesTab`) and its list item (`FileLogItemWidget`). |
+| `lib/src/shared_widgets/file_log_item.dart` | `FileLogItemWidget` (list row) and `FileTypeIcon` (picks an icon per `Content-Type` for non-image files). |
+| `lib/src/shared_widgets/file_request_details_page.dart` | `FileRequestDetailsPage` — the Details tab view for a selected file (preview/icon, metadata, error, copy URL). |
