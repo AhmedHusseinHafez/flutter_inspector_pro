@@ -17,6 +17,11 @@ class JsonPrettyConverter {
   dynamic convert(text) {
     late final dynamic prettyprint;
 
+    if (text is String) {
+      final decoded = _tryDecodeJsonString(text);
+      if (decoded != null) text = decoded;
+    }
+
     if (text is Map || text is String || text is List)
       prettyprint = _convertToPrettyJsonFromMapOrJson(text);
     else if (text is FormData)
@@ -75,4 +80,21 @@ class JsonPrettyConverter {
 
   String _removeUnderScoreIfExists(String dataTypeName) =>
       dataTypeName.replaceFirst('_', '');
+
+  /// Parses [text] as JSON when it looks like a JSON object/array (e.g. a
+  /// response body sent as `Content-Type: text/plain` but containing JSON).
+  /// Returns `null` when [text] isn't decodable JSON, so callers can fall
+  /// back to treating it as a plain string.
+  dynamic _tryDecodeJsonString(String text) {
+    final trimmed = text.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is Map || decoded is List) return decoded;
+    } on FormatException {
+      return null;
+    }
+    return null;
+  }
 }
