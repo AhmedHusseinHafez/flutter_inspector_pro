@@ -56,6 +56,30 @@ class SseLogController {
     _logs.value = [];
   }
 
+  /// Removes exactly the lines belonging to one grouped [connection].
+  static void removeConnection(SseConnectionLog connection) {
+    final updated = [..._logs.value];
+    final start = _indexOfSubsequence(updated, connection.lines);
+    if (start == -1) return;
+    updated.removeRange(start, start + connection.lines.length);
+    _logs.value = updated;
+  }
+
+  static int _indexOfSubsequence(List<String> haystack, List<String> needle) {
+    if (needle.isEmpty) return -1;
+    for (var i = 0; i <= haystack.length - needle.length; i++) {
+      var matches = true;
+      for (var j = 0; j < needle.length; j++) {
+        if (haystack[i + j] != needle[j]) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) return i;
+    }
+    return -1;
+  }
+
   /// Groups the flat log lines into per-connection entries, newest first.
   /// A new connection starts whenever a line contains `CONNECTING -> <url>`;
   /// any lines logged before the first such marker are grouped as one

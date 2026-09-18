@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/request_stopper_editor_dialog.dart';
@@ -7,7 +5,7 @@ import 'package:requests_inspector/src/response_stopper_editor_dialog.dart';
 import 'package:requests_inspector/src/shared_widgets/inspector.dart';
 import '../requests_inspector.dart';
 
-///You can show the Inspector by **Shaking** your phone.
+///You can show the Inspector by long-pressing the screen.
 class RequestsInspector extends StatefulWidget {
   /// Pass your `navigatorKey` of your MaterialApp to enable Request & Response `Stopper` Dialogs.
   /// And if you don't want to use it, you can pass it as `null`.
@@ -15,7 +13,7 @@ class RequestsInspector extends StatefulWidget {
     super.key,
     bool enabled = true,
     bool hideInspectorBanner = false,
-    ShowInspectorOn showInspectorOn = ShowInspectorOn.Both,
+    ShowInspectorOn showInspectorOn = ShowInspectorOn.LongPress,
     required Widget child,
     bool defaultTreeViewEnabled = true,
     required GlobalKey<NavigatorState> navigatorKey,
@@ -41,7 +39,7 @@ class RequestsInspector extends StatefulWidget {
   final bool _defaultIsDarkMode;
   final GlobalKey<NavigatorState>? _navigatorKey;
 
-  /// Called when the inspector screen is opened (shake or long-press).
+  /// Called when the inspector screen is opened (long-press).
   final VoidCallback? onInspectorOpened;
 
   /// Called when the inspector screen is closed.
@@ -58,9 +56,7 @@ class _RequestsInspectorState extends State<RequestsInspector> {
         ? ChangeNotifierProvider(
             create: (context) => InspectorController(
               enabled: widget._enabled,
-              showInspectorOn: _isSupportShaking()
-                  ? widget._showInspectorOn
-                  : ShowInspectorOn.LongPress,
+              showInspectorOn: widget._showInspectorOn,
               defaultTreeViewEnabled: widget._defaultTreeViewEnabled,
               defaultExpandChildren: widget._defaultExpandChildren,
               defaultIsDarkMode: widget._defaultIsDarkMode,
@@ -77,13 +73,16 @@ class _RequestsInspectorState extends State<RequestsInspector> {
             ),
             lazy: false,
             builder: (context, _) {
-              return WillPopScope(
-                onWillPop: () async =>
-                    InspectorController().pageController.page == 0,
+              return PopScope(
+                canPop: false,
+                onPopInvokedWithResult: (didPop, result) {
+                  if (didPop) return;
+                  if (InspectorController().pageController.page == 0) {
+                    Navigator.of(context).maybePop();
+                  }
+                },
                 child: GestureDetector(
-                  onLongPress: widget._showInspectorOn != ShowInspectorOn.Shaking
-                      ? _openInspector
-                      : null,
+                  onLongPress: _openInspector,
                   child: widget._child,
                 ),
               );
@@ -127,9 +126,6 @@ class _RequestsInspectorState extends State<RequestsInspector> {
       widget.onInspectorClosed?.call();
     });
   }
-
-  bool _isSupportShaking() =>
-      kIsWeb ? false : Platform.isAndroid || Platform.isIOS;
 
   Future<RequestDetails?> _showRequestEditorDialog(
     BuildContext context, {

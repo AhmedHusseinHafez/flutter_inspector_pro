@@ -19,9 +19,21 @@ class SseConnectionItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = isSelected
-        ? InspectorTheme.primary
-        : InspectorTheme.border(isDarkMode);
+    final borderColor =
+        isSelected ? InspectorTheme.primary : InspectorTheme.border(isDarkMode);
+
+    final Color statusColor;
+    final String statusLabel;
+    if (connection.hasError) {
+      statusColor = InspectorTheme.statusError;
+      statusLabel = 'ERROR';
+    } else if (connection.isClosed) {
+      statusColor = Colors.grey;
+      statusLabel = 'CLOSED';
+    } else {
+      statusColor = InspectorTheme.statusOk;
+      statusLabel = 'LIVE';
+    }
 
     return Material(
       color: Colors.transparent,
@@ -38,21 +50,33 @@ class SseConnectionItemWidget extends StatelessWidget {
               width: isSelected ? 1.5 : 1.0,
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+          padding: const EdgeInsets.all(10.0),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Container(
+                width: 44.0,
+                height: 36.0,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: InspectorTheme.sse,
+                  borderRadius: BorderRadius.circular(6.0),
+                ),
+                child: const Text(
+                  'SSE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10.0),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        const _SseChip(),
-                        const SizedBox(width: 6.0),
-                        _SseStatusChip(connection: connection),
-                      ],
-                    ),
-                    const SizedBox(height: 6.0),
                     Text(
                       connection.url,
                       maxLines: 1,
@@ -75,70 +99,17 @@ class SseConnectionItemWidget extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 8.0),
+              Text(
+                statusLabel,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.w700,
+                  color: statusColor,
+                ),
+              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SseChip extends StatelessWidget {
-  const _SseChip();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-      decoration: BoxDecoration(
-        color: InspectorTheme.sse,
-        borderRadius: BorderRadius.circular(4.0),
-      ),
-      child: const Text(
-        'SSE',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 11.0,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-}
-
-class _SseStatusChip extends StatelessWidget {
-  const _SseStatusChip({required this.connection});
-
-  final SseConnectionLog connection;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color color;
-    final String label;
-    if (connection.hasError) {
-      color = InspectorTheme.statusError;
-      label = 'ERROR';
-    } else if (connection.isClosed) {
-      color = Colors.grey;
-      label = 'CLOSED';
-    } else {
-      color = InspectorTheme.statusOk;
-      label = 'LIVE';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(4.0),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11.0,
-          fontWeight: FontWeight.w700,
         ),
       ),
     );

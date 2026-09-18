@@ -8,18 +8,9 @@ class MethodChip extends StatelessWidget {
 
   final RequestMethod method;
 
-  static const Map<RequestMethod, Color> _colors = {
-    RequestMethod.GET: InspectorTheme.methodGet,
-    RequestMethod.POST: InspectorTheme.methodPost,
-    RequestMethod.PUT: InspectorTheme.methodPut,
-    RequestMethod.PATCH: InspectorTheme.methodPatch,
-    RequestMethod.DELETE: InspectorTheme.methodDelete,
-    RequestMethod.WS: InspectorTheme.methodWs,
-  };
-
   @override
   Widget build(BuildContext context) {
-    final color = _colors[method] ?? Colors.grey;
+    final color = InspectorTheme.colorForMethod(method);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
       decoration: BoxDecoration(
@@ -44,16 +35,9 @@ class StatusChip extends StatelessWidget {
 
   final int? statusCode;
 
-  static Color _colorFor(int? statusCode) {
-    if (statusCode == null) return InspectorTheme.statusError;
-    if (statusCode > 399) return InspectorTheme.statusError;
-    if (statusCode > 299) return InspectorTheme.statusRedirect;
-    return InspectorTheme.statusOk;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(statusCode);
+    final color = InspectorTheme.colorForStatusCode(statusCode);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
       decoration: BoxDecoration(

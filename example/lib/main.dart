@@ -5,6 +5,7 @@ import 'dart:developer';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:graphql/client.dart';
+import 'package:http/http.dart' as http;
 import 'package:requests_inspector/requests_inspector.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -28,16 +29,27 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void initState() {
-    fetchPostsUsingInterceptor().then(
-      (value) => setState(() {
-        posts = value;
-        isLoading = false;
-      }),
-    );
-    /*for restful apis Interceptor example use => fetchPostsUsingInterceptor() */
-    // fetchPostsGraphQlUsingGraphQLFlutterInterceptor() /*for graph ql Interceptor example */;
-    _demoSseLogs();
     super.initState();
+    // IMPORTANT: `RequestsInspector` (further down the widget tree) is what
+    // constructs the real `InspectorController(enabled: true, ...)` singleton.
+    // Calling anything that touches `InspectorController()` before that widget
+    // has actually built (e.g. synchronously here in initState) creates the
+    // singleton early with the factory's defaults instead - silently
+    // disabling logging for the rest of the app's lifetime. Deferring to a
+    // post-frame callback guarantees `RequestsInspector` has mounted first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      fetchPostsUsingInterceptor().then(
+        (value) => setState(() {
+          posts = value;
+          isLoading = false;
+        }),
+      );
+      /*for restful apis Interceptor example use => fetchPostsUsingInterceptor() */
+      // fetchPostsGraphQlUsingGraphQLFlutterInterceptor() /*for graph ql Interceptor example */;
+      fetchPostsUsingHttpClient();
+      _demoQueryMethod();
+      _demoSseLogs();
+    });
   }
 
   @override
@@ -138,6 +150,21 @@ Future<List<Post>> fetchPosts() async {
   return posts;
 }
 
+/// Demoes the new `QUERY` method (a read-only request that carries a body,
+/// unlike GET). Logged manually since dio/http don't have a `.query()` verb.
+void _demoQueryMethod() {
+  InspectorController().addNewRequest(
+    RequestDetails(
+      requestName: 'Search Posts',
+      requestMethod: RequestMethod.QUERY,
+      url: 'https://dummyjson.com/posts/search',
+      requestBody: {'query': 'flutter', 'limit': 10},
+      statusCode: 200,
+      responseBody: {'total': 3},
+    ),
+  );
+}
+
 Future<List<Post>> fetchPostsUsingInterceptor() async {
   final dio = Dio(
     BaseOptions(
@@ -162,6 +189,20 @@ Future<List<Post>> fetchPostsUsingInterceptor() async {
 
   final posts =
       List.from(response.data['posts']).map((e) => Post.fromMap(e)).toList();
+
+  return posts;
+}
+
+/// for `package:http` Interceptor example use => fetchPostsUsingHttpClient()
+Future<List<Post>> fetchPostsUsingHttpClient() async {
+  final client = HttpInspectorClient(http.Client());
+  final response = await client.get(
+    Uri.parse('https://dummyjson.com/posts?userId=1'),
+  );
+
+  final posts = List.from(json.decode(response.body)['posts'])
+      .map((e) => Post.fromMap(e))
+      .toList();
 
   return posts;
 }
@@ -353,7 +394,21 @@ class _PostItemBuilder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Text(post.id.toString()),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8.0),
+        child: Image.network(
+          'https://picsum.photos/seed/${post.id}/80/80',
+          width: 48.0,
+          height: 48.0,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: 48.0,
+            height: 48.0,
+            color: Colors.grey[300],
+            child: const Icon(Icons.image_not_supported_outlined),
+          ),
+        ),
+      ),
       title: Text(post.title),
       subtitle: Text(post.body),
     );

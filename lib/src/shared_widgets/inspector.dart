@@ -100,6 +100,8 @@ class Inspector extends StatelessWidget {
             return TextButton(
               onPressed: () => _showAreYouSureDialog(
                 context,
+                isDarkMode: isDarkMode,
+                message: 'This will clear all requests added to the inspector.',
                 onYes: () {
                   InspectorController().clearAllRequests();
                   SseLogController.clear();
@@ -265,28 +267,94 @@ class Inspector extends StatelessWidget {
 
   Future<void> _showAreYouSureDialog(
     BuildContext context, {
+    required bool isDarkMode,
+    required String message,
     required VoidCallback onYes,
   }) {
+    final textColor = isDarkMode ? Colors.white : Colors.black87;
+    final subtitleColor = isDarkMode ? Colors.white54 : Colors.black54;
+
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Are you sure? 🤔'),
-        content: const Text(
-          'This will clear all requests added to the inspector',
+      builder: (context) => Dialog(
+        backgroundColor: InspectorTheme.surface(isDarkMode),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44.0,
+                height: 44.0,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: InspectorTheme.statusError.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                child: const Icon(
+                  Icons.delete_outline,
+                  color: InspectorTheme.statusError,
+                ),
+              ),
+              const SizedBox(height: 16.0),
+              Text(
+                'Clear all?',
+                style: TextStyle(
+                  fontSize: 17.0,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 6.0),
+              Text(
+                message,
+                style: TextStyle(fontSize: 13.0, color: subtitleColor),
+              ),
+              const SizedBox(height: 20.0),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: textColor,
+                        side: BorderSide(
+                            color: InspectorTheme.border(isDarkMode)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(InspectorTheme.radius),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12.0),
+                      ),
+                      onPressed: Navigator.of(context).pop,
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12.0),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: InspectorTheme.statusError,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(InspectorTheme.radius),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12.0),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        onYes();
+                      },
+                      child: const Text('Clear'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            child: const Text('Yes', style: TextStyle(color: Colors.red)),
-            onPressed: () {
-              Navigator.of(context).pop();
-              onYes();
-            },
-          ),
-          TextButton(
-            onPressed: Navigator.of(context).pop,
-            child: const Text('No', style: TextStyle(color: Colors.green)),
-          ),
-        ],
       ),
     );
   }
@@ -417,35 +485,78 @@ class Inspector extends StatelessWidget {
                 );
               }
 
+              final rows = _groupByDay(items);
+
               return Selector<InspectorController, RequestDetails?>(
                 selector: (_, controller) => controller.selectedRequest,
                 builder: (context, selectedRequest, _) {
                   final selectedSseId =
                       InspectorController().selectedSseConnection?.id;
-                  return ListView.separated(
+                  return ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12.0, 4.0, 12.0, 12.0),
-                    separatorBuilder: (_, __) => const SizedBox(height: 8.0),
-                    itemCount: items.length,
+                    itemCount: rows.length,
                     itemBuilder: (context, index) {
-                      final item = items[index];
+                      final row = rows[index];
+                      if (row is String) {
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            top: index == 0 ? 0.0 : 16.0,
+                            bottom: 8.0,
+                          ),
+                          child: Text(
+                            row,
+                            style: TextStyle(
+                              fontSize: 12.0,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                              color:
+                                  isDarkMode ? Colors.white38 : Colors.black38,
+                            ),
+                          ),
+                        );
+                      }
+
+                      final item = row as _TimelineItem;
                       final sseConnection = item.sseConnection;
                       if (sseConnection != null) {
-                        return SseConnectionItemWidget(
-                          connection: sseConnection,
-                          isSelected: sseConnection.id == selectedSseId,
-                          isDarkMode: isDarkMode,
-                          onTap: () => InspectorController()
-                              .selectSseConnection(sseConnection),
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Dismissible(
+                            key: ValueKey(sseConnection.id),
+                            direction: DismissDirection.endToStart,
+                            background: _deleteBackground(),
+                            onDismissed: (_) =>
+                                SseLogController.removeConnection(
+                                    sseConnection),
+                            child: SseConnectionItemWidget(
+                              connection: sseConnection,
+                              isSelected: sseConnection.id == selectedSseId,
+                              isDarkMode: isDarkMode,
+                              onTap: () => InspectorController()
+                                  .selectSseConnection(sseConnection),
+                            ),
+                          ),
                         );
                       }
                       final request = item.request!;
-                      return RequestItemWidget(
-                        request: request,
-                        isSelected: selectedRequest == request,
-                        isDarkMode: isDarkMode,
-                        onTap: (itemContext, tappedRequest) {
-                          InspectorController().selectedRequest = tappedRequest;
-                        },
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Dismissible(
+                          key: ValueKey(request.id),
+                          direction: DismissDirection.endToStart,
+                          background: _deleteBackground(),
+                          onDismissed: (_) =>
+                              InspectorController().removeRequest(request),
+                          child: RequestItemWidget(
+                            request: request,
+                            isSelected: selectedRequest == request,
+                            isDarkMode: isDarkMode,
+                            onTap: (itemContext, tappedRequest) {
+                              InspectorController().selectedRequest =
+                                  tappedRequest;
+                            },
+                          ),
+                        ),
                       );
                     },
                   );
@@ -456,6 +567,47 @@ class Inspector extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Widget _deleteBackground() {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20.0),
+      decoration: BoxDecoration(
+        color: InspectorTheme.statusError,
+        borderRadius: BorderRadius.circular(InspectorTheme.radius),
+      ),
+      child: const Icon(Icons.delete_outline, color: Colors.white),
+    );
+  }
+
+  /// Inserts "Today" / "Yesterday" / date-string headers ahead of each
+  /// group of same-day items, in the already time-sorted [items] list.
+  List<Object> _groupByDay(List<_TimelineItem> items) {
+    final rows = <Object>[];
+    DateTime? lastDay;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    for (final item in items) {
+      final day = DateTime(item.time.year, item.time.month, item.time.day);
+      if (lastDay == null || day != lastDay) {
+        lastDay = day;
+        String label;
+        if (day == today) {
+          label = 'TODAY';
+        } else if (day == yesterday) {
+          label = 'YESTERDAY';
+        } else {
+          label =
+              '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+        }
+        rows.add(label);
+      }
+      rows.add(item);
+    }
+    return rows;
   }
 
   Widget _buildSearchField(bool isDarkMode) {

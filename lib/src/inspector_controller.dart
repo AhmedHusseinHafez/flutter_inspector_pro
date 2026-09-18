@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:requests_inspector/src/shake.dart';
 import 'package:requests_inspector/src/stopper_filter.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -22,10 +21,17 @@ typedef StoppingResponseCallback = Future<ResponseDetails?> Function(
 typedef ShowInspectorCallback = void Function();
 
 ///Singleton
+///
+/// NOTE: the singleton is created by whichever caller invokes this factory
+/// first. [RequestsInspector] does so with its real config, but if any code
+/// calls `InspectorController()` (e.g. `addNewRequest`) before that widget
+/// has built, the singleton locks in these defaults instead. Defaulting
+/// `enabled` to `true` here (matching [RequestsInspector]'s own default)
+/// keeps that accident from silently disabling logging.
 class InspectorController extends ChangeNotifier {
   factory InspectorController({
-    bool enabled = false,
-    ShowInspectorOn showInspectorOn = ShowInspectorOn.Shaking,
+    bool enabled = true,
+    ShowInspectorOn showInspectorOn = ShowInspectorOn.LongPress,
     StoppingRequestCallback? onStoppingRequest,
     StoppingResponseCallback? onStoppingResponse,
     ShowInspectorCallback? onShowInspector,
@@ -54,25 +60,16 @@ class InspectorController extends ChangeNotifier {
     required bool defaultExpandChildren,
     required bool defaultIsDarkMode,
   })  : _enabled = enabled,
-        _showInspectorOn = showInspectorOn,
         _onStoppingRequest = onStoppingRequest,
         _onShowInspector = onShowInspector,
         _isTreeView = defaultTreeViewEnabled,
         _expandChildren = defaultExpandChildren,
         _isDarkMode = defaultIsDarkMode,
-        _onStoppingResponse = onStoppingResponse {
-    if (_enabled && _allowShaking)
-      _shakeDetector = ShakeDetector.autoStart(
-        onPhoneShake: showInspector,
-        minimumShakeCount: 3,
-      );
-  }
+        _onStoppingResponse = onStoppingResponse;
 
   static InspectorController? _singleton;
 
   late final bool _enabled;
-  late final ShowInspectorOn _showInspectorOn;
-  late final ShakeDetector _shakeDetector;
   StoppingRequestCallback? _onStoppingRequest;
   StoppingResponseCallback? _onStoppingResponse;
   ShowInspectorCallback? _onShowInspector;
@@ -214,11 +211,6 @@ class InspectorController extends ChangeNotifier {
     _cachedFilterKey = key;
     return _cachedFilteredList!;
   }
-
-  bool get _allowShaking => [
-        ShowInspectorOn.Shaking,
-        ShowInspectorOn.Both,
-      ].contains(_showInspectorOn);
 
   set selectedTab(int value) {
     if (_selectedTab == value) return;
@@ -393,6 +385,13 @@ class InspectorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removeRequest(RequestDetails request) {
+    if (!_requestsList.remove(request)) return;
+    _requestsVersion++;
+    if (_selectedRequest == request) _selectedRequest = null;
+    notifyListeners();
+  }
+
   Future<void> runAgain() async {
     if (_selectedRequest == null) return;
 
@@ -455,9 +454,8 @@ class InspectorController extends ChangeNotifier {
         mimeType: 'application/json',
       );
 
-      Share.shareXFiles(
-        [file],
-        sharePositionOrigin: sharePositionOrigin,
+      SharePlus.instance.share(
+        ShareParams(files: [file], sharePositionOrigin: sharePositionOrigin),
       );
       return;
     } else {
@@ -471,15 +469,16 @@ class InspectorController extends ChangeNotifier {
           '================[cURL Command]=================\n$curlContent\n\n==================[Normal Log]===================\n$normalLogContent';
     }
 
-    Share.share(
-      requestShareContent,
-      sharePositionOrigin: sharePositionOrigin,
+    SharePlus.instance.share(
+      ShareParams(
+        text: requestShareContent,
+        sharePositionOrigin: sharePositionOrigin,
+      ),
     );
   }
 
   @override
   void dispose() {
-    if (_allowShaking) _shakeDetector.stopListening();
     _singleton = null;
     super.dispose();
   }

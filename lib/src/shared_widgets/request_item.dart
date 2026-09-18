@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../requests_inspector.dart';
 import '../helpers/inspector_helper.dart';
 import 'inspector_theme.dart';
-import 'status_method_chip.dart';
 
 class RequestItemWidget extends StatelessWidget {
   const RequestItemWidget({
@@ -27,6 +26,8 @@ class RequestItemWidget extends StatelessWidget {
     final borderColor = _isSelected
         ? InspectorTheme.primary
         : InspectorTheme.border(_isDarkMode);
+    final methodColor = InspectorTheme.colorForMethod(_request.requestMethod);
+    final statusColor = InspectorTheme.colorForStatusCode(_request.statusCode);
 
     return Material(
       color: Colors.transparent,
@@ -43,21 +44,33 @@ class RequestItemWidget extends StatelessWidget {
               width: _isSelected ? 1.5 : 1.0,
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+          padding: const EdgeInsets.all(10.0),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Container(
+                width: 44.0,
+                height: 36.0,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: methodColor,
+                  borderRadius: BorderRadius.circular(6.0),
+                ),
+                child: Text(
+                  _methodAbbreviation(_request.requestMethod),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10.0),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        MethodChip(method: _request.requestMethod),
-                        const SizedBox(width: 6.0),
-                        StatusChip(statusCode: _request.statusCode),
-                      ],
-                    ),
-                    const SizedBox(height: 6.0),
                     Text(
                       _request.requestName,
                       maxLines: 1,
@@ -82,22 +95,42 @@ class RequestItemWidget extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8.0),
-              Text(
-                _request.receivedTime != null
-                    ? InspectorHelper.calculateDuration(
-                        _request.sentTime,
-                        _request.receivedTime!,
-                      )
-                    : InspectorHelper.extractTimeText(_request.sentTime),
-                style: TextStyle(
-                  fontSize: 11.0,
-                  color: _isDarkMode ? Colors.white38 : Colors.black38,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _request.statusCode?.toString() ?? 'Err',
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2.0),
+                  Text(
+                    _request.receivedTime != null
+                        ? InspectorHelper.calculateDuration(
+                            _request.sentTime,
+                            _request.receivedTime!,
+                          )
+                        : InspectorHelper.extractTimeText(_request.sentTime),
+                    style: TextStyle(
+                      fontSize: 11.0,
+                      color: _isDarkMode ? Colors.white38 : Colors.black38,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  String _methodAbbreviation(RequestMethod method) {
+    // Keep it to 5 chars max so it fits the fixed-width badge.
+    final name = method.name;
+    return name.length <= 5 ? name : name.substring(0, 5);
   }
 }
