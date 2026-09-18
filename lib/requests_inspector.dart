@@ -11,3 +11,6 @@ export './src/requests_inspector_interceptor.dart';
 export './src/http_inspector_client.dart';
 export 'src/graphql_inspector_link.dart';
 export 'src/sse/sse_log_controller.dart';
+export 'src/image_request_details.dart';
+export 'src/image_log_controller.dart';
+export 'src/image_http_overrides.dart';

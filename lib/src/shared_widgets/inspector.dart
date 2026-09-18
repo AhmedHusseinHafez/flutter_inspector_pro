@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/filters_dialog.dart';
+import 'package:requests_inspector/src/shared_widgets/image_log_item.dart';
 import 'package:requests_inspector/src/shared_widgets/inspector_theme.dart';
 import 'package:requests_inspector/src/shared_widgets/request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/request_item.dart';
@@ -36,7 +37,7 @@ class Inspector extends StatelessWidget {
             backgroundColor: InspectorTheme.background(isDarkMode),
             appBar: _buildAppBar(isDarkMode),
             body: _buildBody(isDarkMode: isDarkMode),
-            floatingActionButton: _buildShareFloatingButton(),
+            floatingActionButton: _buildFloatingActionButtons(isDarkMode),
           ),
         );
       },
@@ -115,25 +116,34 @@ class Inspector extends StatelessWidget {
             );
           }
 
-          // Details tab: search + run-again only make sense for an HTTP
-          // request, not for a selected SSE connection.
+          if (selectedTab == 2) {
+            return TextButton(
+              onPressed: () => _showAreYouSureDialog(
+                context,
+                isDarkMode: isDarkMode,
+                message: 'This will clear all logged image requests.',
+                onYes: ImageLogController.clear,
+              ),
+              child: Text(
+                'Clear All',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+            );
+          }
+
+          // Run-again only makes sense for an HTTP request, not for a
+          // selected SSE connection. Search moved to a floating action
+          // button (see _buildFloatingActionButtons).
           return Selector<InspectorController, RequestDetails?>(
             selector: (_, c) => c.selectedRequest,
             builder: (context, selectedRequest, _) {
               if (selectedRequest == null) return const SizedBox();
-              return Row(
-                children: [
-                  IconButton(
-                    onPressed: InspectorController().toggleSearchVisibility,
-                    icon: const Icon(Icons.search),
-                    tooltip: 'Search',
-                  ),
-                  RunAgainButton(
-                    key: ValueKey(selectedRequest.hashCode),
-                    onTap: InspectorController().runAgain,
-                    isDarkMode: isDarkMode,
-                  ),
-                ],
+              return RunAgainButton(
+                key: ValueKey(selectedRequest.hashCode),
+                onTap: InspectorController().runAgain,
+                isDarkMode: isDarkMode,
               );
             },
           );
@@ -177,6 +187,12 @@ class Inspector extends StatelessWidget {
             isDarkMode: isDarkMode,
             isSelected: selectedTab == 1,
             onTap: () => InspectorController().selectedTab = 1,
+          ),
+          _buildTabItem(
+            title: 'Images',
+            isDarkMode: isDarkMode,
+            isSelected: selectedTab == 2,
+            onTap: () => InspectorController().selectedTab = 2,
           ),
         ],
       ),
@@ -227,7 +243,34 @@ class Inspector extends StatelessWidget {
     if (selectedTab == 0) {
       return _buildAllRequests(isDarkMode: isDarkMode);
     }
+    if (selectedTab == 2) {
+      return [_buildImagesTab(isDarkMode)];
+    }
     return [_buildDetailsTab(isDarkMode)];
+  }
+
+  Widget _buildImagesTab(bool isDarkMode) {
+    return Expanded(
+      child: ValueListenableBuilder<List<ImageRequestDetails>>(
+        valueListenable: ImageLogController.images,
+        builder: (context, images, _) {
+          if (images.isEmpty) {
+            return const Center(
+              child: Text('No image requests logged yet'),
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(12.0),
+            itemCount: images.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8.0),
+            itemBuilder: (context, index) => ImageLogItemWidget(
+              details: images[index],
+              isDarkMode: isDarkMode,
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildDetailsTab(bool isDarkMode) {
@@ -358,37 +401,76 @@ class Inspector extends StatelessWidget {
     );
   }
 
-  Widget _buildShareFloatingButton() {
+  /// Stacks the search toggle above the Slack share button, both styled as
+  /// matching floating action buttons in the bottom-right corner of the
+  /// details screen. Search only applies to HTTP requests; share applies to
+  /// both HTTP requests and SSE connections.
+  Widget _buildFloatingActionButtons(bool isDarkMode) {
     return Selector<InspectorController, bool>(
-      selector: (_, inspectorController) =>
-          inspectorController.selectedTab == 1 &&
-          (inspectorController.selectedRequest != null ||
-              inspectorController.selectedSseConnection != null),
-      builder: (context, showShareButton, _) => showShareButton
-          ? FloatingActionButton(
-              backgroundColor: Colors.white,
-              elevation: 2,
-              tooltip: 'Share to Slack',
-              child: const SlackIcon(size: 26.0),
-              onPressed: () {
-                final box = context.findRenderObject() as RenderBox?;
-                final sharePositionOrigin = box == null
-                    ? null
-                    : box.localToGlobal(Offset.zero) & box.size;
+      selector: (_, c) =>
+          c.selectedTab == 1 &&
+          (c.selectedRequest != null || c.selectedSseConnection != null),
+      builder: (context, showButtons, _) {
+        if (!showButtons) return const SizedBox();
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildSearchFloatingButton(isDarkMode),
+            const SizedBox(height: 12.0),
+            _buildShareFloatingButton(context),
+          ],
+        );
+      },
+    );
+  }
 
-                final controller = InspectorController();
-                if (controller.selectedRequest != null) {
-                  controller.shareSelectedRequest(
-                    sharePositionOrigin: sharePositionOrigin,
-                  );
-                } else if (controller.selectedSseConnection != null) {
-                  controller.shareSelectedSseConnection(
-                    sharePositionOrigin: sharePositionOrigin,
-                  );
-                }
-              },
-            )
-          : const SizedBox(),
+  Widget _buildSearchFloatingButton(bool isDarkMode) {
+    return Selector<InspectorController, RequestDetails?>(
+      selector: (_, c) => c.selectedRequest,
+      builder: (context, selectedRequest, _) {
+        if (selectedRequest == null) return const SizedBox();
+        return Selector<InspectorController, bool>(
+          selector: (_, c) => c.isSearchVisible,
+          builder: (context, isSearchVisible, _) => FloatingActionButton(
+            heroTag: 'inspector_search_fab',
+            mini: true,
+            backgroundColor: InspectorTheme.surface(isDarkMode),
+            foregroundColor: isSearchVisible
+                ? InspectorTheme.primary
+                : (isDarkMode ? Colors.white70 : Colors.black87),
+            elevation: 2,
+            tooltip: isSearchVisible ? 'Close search' : 'Search',
+            onPressed: InspectorController().toggleSearchVisibility,
+            child: Icon(isSearchVisible ? Icons.close : Icons.search),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildShareFloatingButton(BuildContext context) {
+    return FloatingActionButton(
+      heroTag: 'inspector_share_fab',
+      backgroundColor: Colors.white,
+      elevation: 2,
+      tooltip: 'Share to Slack',
+      child: const SlackIcon(size: 26.0),
+      onPressed: () {
+        final box = context.findRenderObject() as RenderBox?;
+        final sharePositionOrigin =
+            box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+
+        final controller = InspectorController();
+        if (controller.selectedRequest != null) {
+          controller.shareSelectedRequest(
+            sharePositionOrigin: sharePositionOrigin,
+          );
+        } else if (controller.selectedSseConnection != null) {
+          controller.shareSelectedSseConnection(
+            sharePositionOrigin: sharePositionOrigin,
+          );
+        }
+      },
     );
   }
 
