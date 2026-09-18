@@ -44,8 +44,44 @@ class _SearchState {
       expandChildren.hashCode;
 }
 
-class RequestDetailsPage extends StatelessWidget {
+class RequestDetailsPage extends StatefulWidget {
   const RequestDetailsPage({super.key});
+
+  @override
+  State<RequestDetailsPage> createState() => _RequestDetailsPageState();
+}
+
+class _RequestDetailsPageState extends State<RequestDetailsPage> {
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollToTop = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final showScrollToTop = _scrollController.offset > 300;
+    if (showScrollToTop != _showScrollToTop) {
+      setState(() => _showScrollToTop = showScrollToTop);
+    }
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +104,33 @@ class RequestDetailsPage extends StatelessWidget {
                     ),
                   ),
                   Expanded(
-                    child: _buildRequestDetails(context, selectedRequest),
+                    child: Stack(
+                      children: [
+                        _buildRequestDetails(context, selectedRequest),
+                        Positioned(
+                          left: 12,
+                          bottom: 12,
+                          child: Selector<InspectorController, bool>(
+                            selector: (_, controller) => controller.isDarkMode,
+                            builder: (context, isDarkMode, _) =>
+                                AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: _showScrollToTop ? 1 : 0,
+                              child: IgnorePointer(
+                                ignoring: !_showScrollToTop,
+                                child: FloatingActionButton(
+                                  heroTag: 'scroll_to_top_fab',
+                                  mini: true,
+                                  tooltip: 'Scroll to top',
+                                  onPressed: _scrollToTop,
+                                  child: const Icon(Icons.arrow_upward),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -160,6 +222,7 @@ class RequestDetailsPage extends StatelessWidget {
                 currentMatchIndex < responseBodyOffset + responseBodyMatches;
 
             return ListView(
+              controller: _scrollController,
               padding:
                   const EdgeInsets.only(left: 12.0, right: 12.0, bottom: 96.0),
               children: [
