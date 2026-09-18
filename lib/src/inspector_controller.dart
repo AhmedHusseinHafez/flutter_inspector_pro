@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:requests_inspector/src/stopper_filter.dart';
@@ -6,10 +5,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../requests_inspector.dart';
 import 'curl_command_generator.dart';
-import 'har_generator.dart';
 import 'json_pretty_converter.dart';
 import 'helpers/inspector_helper.dart';
-import 'enums/share_type_enum.dart';
 import 'requests_filter.dart';
 
 typedef StoppingRequestCallback = Future<RequestDetails?> Function(
@@ -418,60 +415,50 @@ class InspectorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void shareSelectedRequest({
-    Rect? sharePositionOrigin,
-    ShareType shareType = ShareType.NormalLog,
-  }) {
-    String? requestShareContent;
-    if (shareType == ShareType.CurlCommand) {
-      final curlCommandGenerator = CurlCommandGenerator(_selectedRequest!);
-      requestShareContent = curlCommandGenerator.generate();
-    } else if (shareType == ShareType.NormalLog) {
-      final requestMap = _selectedRequest!.toMap();
-      requestShareContent = _formatMap(requestMap);
-    } else if (shareType == ShareType.Har) {
-      final curlCommandGenerator = CurlCommandGenerator(_selectedRequest!);
-      final curlContent = curlCommandGenerator.generate();
+  /// Shares the selected HTTP request directly to Slack (or the platform
+  /// share sheet) in a single, backend-engineer-friendly format: a
+  /// reproducible cURL command followed by the full request/response log.
+  void shareSelectedRequest({Rect? sharePositionOrigin}) {
+    final curlCommandGenerator = CurlCommandGenerator(_selectedRequest!);
+    final curlContent = curlCommandGenerator.generate();
 
-      final harGenerator = HarGenerator();
-      requestShareContent = harGenerator.generate(
-        request: _selectedRequest!,
-        curlCommand: curlContent,
-      );
-    } else if (shareType == ShareType.HarFile) {
-      final curlCommandGenerator = CurlCommandGenerator(_selectedRequest!);
-      final curlContent = curlCommandGenerator.generate();
+    final requestMap = _selectedRequest!.toMap();
+    final normalLogContent = _formatMap(requestMap);
 
-      final harGenerator = HarGenerator();
-      final harJson = harGenerator.generate(
-        request: _selectedRequest!,
-        curlCommand: curlContent,
-      );
-
-      final file = XFile.fromData(
-        utf8.encode(harJson),
-        name: 'request.har',
-        mimeType: 'application/json',
-      );
-
-      SharePlus.instance.share(
-        ShareParams(files: [file], sharePositionOrigin: sharePositionOrigin),
-      );
-      return;
-    } else {
-      final curlCommandGenerator = CurlCommandGenerator(_selectedRequest!);
-      final curlContent = curlCommandGenerator.generate();
-
-      final requestMap = _selectedRequest!.toMap();
-      final normalLogContent = _formatMap(requestMap);
-
-      requestShareContent =
-          '================[cURL Command]=================\n$curlContent\n\n==================[Normal Log]===================\n$normalLogContent';
-    }
+    final requestShareContent =
+        '================[cURL Command]=================\n$curlContent\n\n==================[Request / Response]===================\n$normalLogContent';
 
     SharePlus.instance.share(
       ShareParams(
         text: requestShareContent,
+        sharePositionOrigin: sharePositionOrigin,
+      ),
+    );
+  }
+
+  /// Shares the selected SSE connection directly to Slack (or the platform
+  /// share sheet) as a plain, chronological event log.
+  void shareSelectedSseConnection({Rect? sharePositionOrigin}) {
+    final connection = _selectedSseConnection!;
+    final startedAtText = InspectorHelper.extractTimeText(connection.startedAt);
+    final status = connection.hasError
+        ? 'ERROR'
+        : connection.isClosed
+            ? 'CLOSED'
+            : 'OPEN';
+
+    final buffer = StringBuffer()
+      ..writeln('================[SSE Connection]=================')
+      ..writeln('URL: ${connection.url}')
+      ..writeln('Started at: $startedAtText')
+      ..writeln('Status: $status')
+      ..writeln()
+      ..writeln('==================[Event Log]===================')
+      ..writeln(connection.lines.join('\n'));
+
+    SharePlus.instance.share(
+      ShareParams(
+        text: buffer.toString(),
         sharePositionOrigin: sharePositionOrigin,
       ),
     );

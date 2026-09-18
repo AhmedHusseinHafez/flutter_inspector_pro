@@ -1,6 +1,6 @@
 # flutter_inspector_pro
 
-An in-app network inspector for Flutter apps. Long-press anywhere on screen and get a live, on-device timeline of everything your app talks to over the network — REST (`Dio` and `package:http`), **GraphQL** (queries, mutations, and WebSocket subscriptions), and **Server-Sent Events (SSE)** — with request/response detail views, request/response interception ("Stopper"), search & filtering, and export to log/`cURL`/`HAR`. No external proxy tool (Charles, Proxyman, mitmproxy) required.
+An in-app network inspector for Flutter apps. Long-press anywhere on screen and get a live, on-device timeline of everything your app talks to over the network — REST (`Dio` and `package:http`), **GraphQL** (queries, mutations, and WebSocket subscriptions), and **Server-Sent Events (SSE)** — with request/response detail views, request/response interception ("Stopper"), search & filtering, and one-tap share-to-Slack. No external proxy tool (Charles, Proxyman, mitmproxy) required.
 
 > **📌 Provenance note — please read.** This package is a fork built on top of [`requests_inspector`](https://github.com/Abdelazeem777/requests_inspector) by **Abdelazeem Kuratem** and its contributors. The original author of *this* fork built its architecture and feature set independently, but later found that upstream's GraphQL integration was a stronger implementation than what existed here, and adopted it rather than keep maintaining a separate, weaker one. Upstream's GraphQL link (`GraphQLInspectorLink`), the base inspector shell, the Dio interceptor, and the Stopper feature all originate there — **this fork does not claim to have invented that code.** Everything else described below as "added in this fork" (the `package:http` client, SSE support, search/filtering, HAR export, the current UI, and more) was built independently on top of that adopted base. See [Credits & Relationship to the Upstream Project](#-credits--relationship-to-the-upstream-project) for the full, itemized breakdown, and give the [Contributors](#-contributors) section below a look — it lists everyone who has worked on upstream.
 
@@ -30,7 +30,7 @@ An in-app network inspector for Flutter apps. Long-press anywhere on screen and 
 
 ## What this package does
 
-Wrap your `MaterialApp` in `RequestsInspector` and every request your app makes through a supported client gets recorded — method, URL, query parameters, headers, request/response bodies, status code, and timing — into an in-memory timeline. Long-press anywhere to bring up the inspector screen on top of your running app, browse the timeline, drill into a single request's details (with a JSON tree view or raw text), search across everything, filter by method/status/type, and share a request out as a plain log, a `cURL` command, or a HAR file.
+Wrap your `MaterialApp` in `RequestsInspector` and every request your app makes through a supported client gets recorded — method, URL, query parameters, headers, request/response bodies, status code, and timing — into an in-memory timeline. Long-press anywhere to bring up the inspector screen on top of your running app, browse the timeline, drill into a single request's (or SSE connection's) details (with a JSON tree view or raw text), search across everything, filter by method/status/type, and share it straight to Slack with one tap.
 
 It's aimed at day-to-day development and QA: reproducing a bug on a real device/simulator without hooking up a system-wide proxy, showing a backend engineer exactly what a mobile client sent, or forcing a specific response/error to test how the UI handles it (via **Stopper**).
 
@@ -51,7 +51,7 @@ It's aimed at day-to-day development and QA: reproducing a bug on a real device/
 - **`RequestMethod.QUERY`** — an extra pseudo-method for read-only requests that carry a body (distinct from `GET`), alongside `GET`/`POST`/`PUT`/`PATCH`/`DELETE` and the internally-used `WS`. *(added in this fork)*
 - **Stopper** — pause an outgoing request or an incoming response and edit it before it continues, useful for forcing error codes or malformed payloads without touching a backend. *(from upstream; see the [Stopper section](#6-stopper--intercept-requests--responses) below for how it's actually enabled in the current version — it's programmatic, not a UI toggle right now)*
 - **Search & filtering** — free-text URL search on the timeline, method/status-code/item-type (`all`/`http`/`sse`) filters, and in-request text search with match count and next/previous navigation. *(added in this fork)*
-- **Export** — share the selected request as a plain log, a `cURL` command, a HAR entry (text or `.har` file), or cURL+log combined. Log/cURL sharing is from upstream; HAR export was added in this fork.
+- **Share to Slack** — one tap shares the selected request (or SSE connection) as a ready-to-paste cURL command plus full request/response (or event) log, no format picker in the way. *(reworked in this fork; see [Sharing & exporting requests](#sharing--exporting-requests))*
 - JSON tree view (or raw text) with copy-to-clipboard per section, light/dark themes, and `onInspectorOpened`/`onInspectorClosed` callbacks. *(callbacks added in this fork)*
 
 ## Getting started
@@ -208,12 +208,10 @@ With `requestStopperEnabled`/`responseStopperEnabled` on, a matching in-flight r
 
 ## Sharing & exporting requests
 
-From a request's detail page, tap the floating share button (Slack-branded icon) to share it as:
+The floating share button (Slack-branded icon) appears on the detail page of any selected item — an HTTP request or an SSE connection — and shares it immediately, with no format picker in the way. The content is built to be pasted straight into a Slack thread and read by another engineer without extra tooling:
 
-- **Normal log** — a readable, pretty-printed dump of every section.
-- **cURL command** — ready to paste into a terminal or Postman.
-- **HAR (text or `.har` file)** — a standard HTTP Archive entry, importable into Postman, Proxyman, or any HAR-compatible tool. *(added in this fork)*
-- **Both** — cURL command and normal log combined.
+- **HTTP requests** — a ready-to-run `cURL` command, followed by the full request/response log (headers, query params, body, status code, timing).
+- **SSE connections** — the connection URL, start time, and status, followed by the full chronological event log.
 
 The share button's icon is Slack's logo, signaling "send this to your team" — but under the hood it still opens the platform's native share sheet (via `share_plus`), so the actual destination app is whatever the user picks there, same as sharing anything else on iOS/Android. It isn't a built-in Slack webhook integration.
 
@@ -368,7 +366,7 @@ To add yourself as a contributor, simply follow the contribution guidelines and 
 - [x] Server-Sent Events (SSE) logging.
 - [x] `package:http` client support (`HttpInspectorClient`).
 - [x] Search and filtering.
-- [x] HAR export (text and `.har` file).
+- [x] ~~HAR export (text and `.har` file)~~ — removed; sharing is now a single direct cURL+log format (see [Sharing & exporting requests](#sharing--exporting-requests)).
 - [x] Inspector open/close callbacks.
 - [x] `RequestMethod.QUERY`.
 - [ ] Firebase-backed logging/observability integration.

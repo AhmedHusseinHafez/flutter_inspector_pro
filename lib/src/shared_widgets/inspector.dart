@@ -10,7 +10,6 @@ import 'package:requests_inspector/src/shared_widgets/slack_icon.dart';
 import 'package:requests_inspector/src/shared_widgets/sse_connection_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/sse_connection_item.dart';
 import '../../requests_inspector.dart';
-import '../enums/share_type_enum.dart';
 
 class Inspector extends StatelessWidget {
   const Inspector({super.key, GlobalKey<NavigatorState>? navigatorKey})
@@ -363,100 +362,33 @@ class Inspector extends StatelessWidget {
     return Selector<InspectorController, bool>(
       selector: (_, inspectorController) =>
           inspectorController.selectedTab == 1 &&
-          inspectorController.selectedRequest != null,
+          (inspectorController.selectedRequest != null ||
+              inspectorController.selectedSseConnection != null),
       builder: (context, showShareButton, _) => showShareButton
           ? FloatingActionButton(
               backgroundColor: Colors.white,
               elevation: 2,
               tooltip: 'Share to Slack',
               child: const SlackIcon(size: 26.0),
-              onPressed: () async {
+              onPressed: () {
                 final box = context.findRenderObject() as RenderBox?;
+                final sharePositionOrigin = box == null
+                    ? null
+                    : box.localToGlobal(Offset.zero) & box.size;
 
-                final selectedRequest = InspectorController().selectedRequest!;
-                final isHttp = _isHttp(selectedRequest);
-
-                var shareType =
-                    isHttp ? await _showDialogShareType(context) : null;
-
-                if (shareType == null) return;
-
-                if (shareType == ShareType.Har) {
-                  shareType = await _showHarFormatDialog(context);
-                  if (shareType == null) return;
+                final controller = InspectorController();
+                if (controller.selectedRequest != null) {
+                  controller.shareSelectedRequest(
+                    sharePositionOrigin: sharePositionOrigin,
+                  );
+                } else if (controller.selectedSseConnection != null) {
+                  controller.shareSelectedSseConnection(
+                    sharePositionOrigin: sharePositionOrigin,
+                  );
                 }
-
-                InspectorController().shareSelectedRequest(
-                  sharePositionOrigin: box == null
-                      ? null
-                      : box.localToGlobal(Offset.zero) & box.size,
-                  shareType: shareType,
-                );
               },
             )
           : const SizedBox(),
-    );
-  }
-
-  bool _isHttp(RequestDetails selectedRequest) {
-    return selectedRequest.requestMethod == RequestMethod.GET ||
-        selectedRequest.requestMethod == RequestMethod.POST ||
-        selectedRequest.requestMethod == RequestMethod.PUT ||
-        selectedRequest.requestMethod == RequestMethod.PATCH ||
-        selectedRequest.requestMethod == RequestMethod.DELETE;
-  }
-
-  Future<ShareType?> _showDialogShareType(BuildContext context) {
-    return showDialog<ShareType?>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Share as Normal Log, cURL or HAR? 🤔'),
-        content: const Text('Choose your preferred share format'),
-        actions: [
-          TextButton(
-            child: const Text(
-              'cURL Command',
-              style: TextStyle(color: Colors.green),
-            ),
-            onPressed: () => Navigator.of(context).pop(ShareType.CurlCommand),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(ShareType.NormalLog),
-            child: const Text(
-              'Normal Log',
-              style: TextStyle(color: Colors.yellow),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(ShareType.Both),
-            child: const Text('Both', style: TextStyle(color: Colors.red)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(ShareType.Har),
-            child: const Text('HAR'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<ShareType?> _showHarFormatDialog(BuildContext context) {
-    return showDialog<ShareType?>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('HAR format'),
-        content: const Text('Do you want the HAR as text or as a .har file?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(ShareType.Har),
-            child: const Text('HAR text copy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(ShareType.HarFile),
-            child: const Text('HAR file (.har)'),
-          ),
-        ],
-      ),
     );
   }
 
