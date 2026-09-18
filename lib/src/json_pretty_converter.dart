@@ -83,16 +83,31 @@ class JsonPrettyConverter {
 
   /// Parses [text] as JSON when it looks like a JSON object/array (e.g. a
   /// response body sent as `Content-Type: text/plain` but containing JSON).
+  /// Handles double-encoded JSON too (a JSON string whose decoded value is
+  /// itself a JSON-encoded string, as can happen when parsing is offloaded
+  /// to an isolate and the result gets re-encoded along the way).
   /// Returns `null` when [text] isn't decodable JSON, so callers can fall
   /// back to treating it as a plain string.
   dynamic _tryDecodeJsonString(String text) {
-    final trimmed = text.trim();
-    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+    var current = text.trim();
 
-    try {
-      final decoded = jsonDecode(trimmed);
+    for (var i = 0; i < 5; i++) {
+      if (!current.startsWith('{') &&
+          !current.startsWith('[') &&
+          !current.startsWith('"')) return null;
+
+      dynamic decoded;
+      try {
+        decoded = jsonDecode(current);
+      } on FormatException {
+        return null;
+      }
+
       if (decoded is Map || decoded is List) return decoded;
-    } on FormatException {
+      if (decoded is String && decoded != current) {
+        current = decoded.trim();
+        continue;
+      }
       return null;
     }
     return null;
