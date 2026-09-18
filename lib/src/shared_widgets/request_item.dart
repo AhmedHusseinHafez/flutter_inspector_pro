@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../requests_inspector.dart';
 import '../helpers/inspector_helper.dart';
+import 'inspector_theme.dart';
+import 'status_method_chip.dart';
 
 class RequestItemWidget extends StatelessWidget {
   const RequestItemWidget({
@@ -22,53 +24,80 @@ class RequestItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget child = ListTile(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0)),
-      tileColor: InspectorHelper.specifyStatusCodeColor(_request.statusCode),
-      leading: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Text(
-            _request.requestMethod.name,
-            style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            _request.receivedTime != null
-                ? InspectorHelper.calculateDuration(
-                    _request.sentTime,
-                    _request.receivedTime!,
-                  )
-                : InspectorHelper.extractTimeText(_request.sentTime),
-            style: TextStyle(color: Colors.grey[800]),
-          ),
-        ],
-      ),
-      title: Text(_request.requestName),
-      subtitle: Text(_request.url),
-      trailing: Text(
-        _request.statusCode?.toString() ?? 'Err',
-        style: const TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold),
-      ),
-      // Pass the current context and the request to the onTap callback
-      onTap: () => _onTap(context, _request),
-    );
+    final borderColor = _isSelected
+        ? InspectorTheme.primary
+        : InspectorTheme.border(_isDarkMode);
 
-    if (_isSelected) {
-      child = DecoratedBox(
-        decoration: BoxDecoration(
-          border: _isDarkMode
-              ? Border.all(color: Colors.white, width: 2.0)
-              : Border.all(color: Colors.black, width: 2.0),
-          borderRadius: BorderRadius.circular(4.0),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(InspectorTheme.radius),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _onTap(context, _request),
+        child: Container(
+          decoration: BoxDecoration(
+            color: InspectorTheme.surface(_isDarkMode),
+            borderRadius: BorderRadius.circular(InspectorTheme.radius),
+            border: Border.all(
+              color: borderColor,
+              width: _isSelected ? 1.5 : 1.0,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        MethodChip(method: _request.requestMethod),
+                        const SizedBox(width: 6.0),
+                        StatusChip(statusCode: _request.statusCode),
+                      ],
+                    ),
+                    const SizedBox(height: 6.0),
+                    Text(
+                      _request.requestName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w600,
+                        color: _isDarkMode ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2.0),
+                    Text(
+                      _request.url,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.0,
+                        color: _isDarkMode ? Colors.white54 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8.0),
+              Text(
+                _request.receivedTime != null
+                    ? InspectorHelper.calculateDuration(
+                        _request.sentTime,
+                        _request.receivedTime!,
+                      )
+                    : InspectorHelper.extractTimeText(_request.sentTime),
+                style: TextStyle(
+                  fontSize: 11.0,
+                  color: _isDarkMode ? Colors.white38 : Colors.black38,
+                ),
+              ),
+            ],
+          ),
         ),
-        child: child,
-      );
-    }
-    // This theme data copy will implicitly update if the main MaterialApp's theme changes,
-    // as it's rebuilding as part of the _InspectorState's build method
-    return Theme(
-      data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light()),
-      child: child,
+      ),
     );
   }
 }

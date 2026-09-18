@@ -95,6 +95,13 @@ class InspectorController extends ChangeNotifier {
 
   final _requestsList = <RequestDetails>[];
   RequestDetails? _selectedRequest;
+  SseConnectionLog? _selectedSseConnection;
+
+  // Bumped whenever _requestsList is mutated, used to cache filteredRequestsList
+  // so it isn't recomputed on every unrelated notifyListeners() (e.g. dark mode toggle).
+  int _requestsVersion = 0;
+  List<RequestDetails>? _cachedFilteredList;
+  String? _cachedFilterKey;
 
   bool _isSearchVisible = false;
   String _searchQuery = '';
@@ -105,6 +112,7 @@ class InspectorController extends ChangeNotifier {
   String _searchUrlQuery = '';
   RequestMethod? _filterRequestMethod;
   int? _filterStatusCode;
+  ItemTypeFilter _filterItemType = ItemTypeFilter.all;
 
   // ------------------------------
 
@@ -147,6 +155,8 @@ class InspectorController extends ChangeNotifier {
 
   RequestDetails? get selectedRequest => _selectedRequest;
 
+  SseConnectionLog? get selectedSseConnection => _selectedSseConnection;
+
   bool get isSearchVisible => _isSearchVisible;
 
   String get searchQuery => _searchQuery;
@@ -161,14 +171,33 @@ class InspectorController extends ChangeNotifier {
 
   int? get filterStatusCode => _filterStatusCode;
 
+  ItemTypeFilter get filterItemType => _filterItemType;
+
   bool get areAnyFiltersApplied =>
       searchUrlQuery.trim().isNotEmpty ||
       filterRequestMethod != null ||
-      filterStatusCode != null;
+      filterStatusCode != null ||
+      filterItemType != ItemTypeFilter.all;
 
-  // Computed filtered + searched list
+  /// Key identifying the inputs that affect [filteredRequestsList]'s result.
+  /// Used to skip recomputation when unrelated state changes (e.g. dark mode).
+  String get requestsListCacheKey =>
+      '$_requestsVersion|$_filterRequestMethod|$_filterStatusCode|$_searchUrlQuery|$_filterItemType';
+
+  // Computed filtered + searched list (cached until its inputs change)
   List<RequestDetails> get filteredRequestsList {
-    Iterable<RequestDetails> list = [..._requestsList];
+    final key = requestsListCacheKey;
+    if (_cachedFilteredList != null && _cachedFilterKey == key) {
+      return _cachedFilteredList!;
+    }
+
+    if (_filterItemType == ItemTypeFilter.sse) {
+      _cachedFilteredList = const [];
+      _cachedFilterKey = key;
+      return _cachedFilteredList!;
+    }
+
+    Iterable<RequestDetails> list = _requestsList;
 
     if (_filterRequestMethod != null)
       list =
@@ -181,7 +210,9 @@ class InspectorController extends ChangeNotifier {
     if (_searchUrlQuery.trim().isNotEmpty)
       list = list.where(RequestUrlFilter(_searchUrlQuery).requestFilter);
 
-    return list.toList(growable: false);
+    _cachedFilteredList = list.toList(growable: false);
+    _cachedFilterKey = key;
+    return _cachedFilteredList!;
   }
 
   bool get _allowShaking => [
@@ -208,10 +239,23 @@ class InspectorController extends ChangeNotifier {
   }
 
   set selectedRequest(RequestDetails? value) {
-    if (_selectedRequest == value && _selectedTab == 1) return;
+    if (_selectedRequest == value &&
+        _selectedSseConnection == null &&
+        _selectedTab == 1) return;
     _selectedRequest = value;
+    _selectedSseConnection = null;
     _selectedTab = 1;
     _updateTotalMatches();
+    notifyListeners();
+  }
+
+  void selectSseConnection(SseConnectionLog connection) {
+    if (_selectedSseConnection?.id == connection.id &&
+        _selectedRequest == null &&
+        _selectedTab == 1) return;
+    _selectedSseConnection = connection;
+    _selectedRequest = null;
+    _selectedTab = 1;
     notifyListeners();
   }
 
@@ -234,9 +278,16 @@ class InspectorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setItemTypeFilter(ItemTypeFilter itemType) {
+    if (_filterItemType == itemType) return;
+    _filterItemType = itemType;
+    notifyListeners();
+  }
+
   void clearFilters() {
     _filterRequestMethod = null;
     _filterStatusCode = null;
+    _filterItemType = ItemTypeFilter.all;
     notifyListeners();
   }
 
@@ -330,12 +381,14 @@ class InspectorController extends ChangeNotifier {
   void addNewRequest(RequestDetails request) {
     if (!_enabled) return;
     _requestsList.insert(0, request);
+    _requestsVersion++;
     notifyListeners();
   }
 
   void clearAllRequests() {
     if (_requestsList.isEmpty && _selectedRequest == null) return;
     _requestsList.clear();
+    _requestsVersion++;
     _selectedRequest = null;
     notifyListeners();
   }

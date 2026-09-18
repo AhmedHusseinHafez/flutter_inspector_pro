@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'inspector_theme.dart';
+
 class RunAgainButton extends StatefulWidget {
   const RunAgainButton({
     super.key,
@@ -21,31 +23,52 @@ class _RunAgainButtonState extends State<RunAgainButton> {
   Widget build(BuildContext context) {
     // No need for a Selector here, as isDarkMode is passed as a direct prop
     return _isLoading
-        ? const Center(
-            child: Padding(
-              padding: EdgeInsets.all(8.0),
-              child: CircularProgressIndicator(color: Colors.white),
+        ? const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12.0),
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: InspectorTheme.primary,
+              ),
             ),
           )
-        : InkWell(
-            onTap: () {
-              _setBusy();
-              widget.onTap().whenComplete(_setReady);
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Run',
-                  style: TextStyle(
-                    color: widget.isDarkMode ? Colors.white : Colors.black87,
-                  ),
+        : Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(20.0),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                _setBusy();
+                widget.onTap().whenComplete(_setReady);
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                decoration: BoxDecoration(
+                  color: InspectorTheme.primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20.0),
                 ),
-                Icon(
-                  Icons.play_arrow,
-                  color: widget.isDarkMode ? Colors.white : Colors.black87,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Run',
+                      style: TextStyle(
+                        color: InspectorTheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.0,
+                      ),
+                    ),
+                    Icon(
+                      Icons.play_arrow_rounded,
+                      color: InspectorTheme.primary,
+                      size: 18.0,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           );
   }

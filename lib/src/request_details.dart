@@ -2,6 +2,7 @@
 import 'dart:convert';
 
 import 'package:requests_inspector/requests_inspector.dart';
+import 'json_pretty_converter.dart';
 
 class RequestDetails {
   late final String requestName;
@@ -48,6 +49,36 @@ class RequestDetails {
   }
 
   String get id => _id;
+
+  // Pretty-printed JSON is expensive for large bodies, so it's computed once
+  // per instance and cached, instead of on every UI rebuild (e.g. dark mode
+  // or JSON tree view toggles).
+  String? _urlPretty;
+  String get urlPretty => _urlPretty ??= JsonPrettyConverter().convert(url);
+
+  String? _headersPretty;
+  String get headersPretty => _headersPretty ??=
+      headers != null ? JsonPrettyConverter().convert(headers) : '';
+
+  String? _queryParametersPretty;
+  String get queryParametersPretty =>
+      _queryParametersPretty ??= queryParameters != null
+          ? JsonPrettyConverter().convert(queryParameters)
+          : '';
+
+  String? _requestBodyPretty;
+  String get requestBodyPretty => _requestBodyPretty ??=
+      requestBody != null ? JsonPrettyConverter().convert(requestBody) : '';
+
+  String? _graphqlRequestVarsPretty;
+  String get graphqlRequestVarsPretty =>
+      _graphqlRequestVarsPretty ??= graphqlRequestVars != null
+          ? JsonPrettyConverter().convert(graphqlRequestVars)
+          : '';
+
+  String? _responseBodyPretty;
+  String get responseBodyPretty => _responseBodyPretty ??=
+      responseBody != null ? JsonPrettyConverter().convert(responseBody) : '';
 
   RequestDetails copyWith({
     String? requestName,

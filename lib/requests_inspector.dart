@@ -6,6 +6,7 @@ export './src/response_details.dart';
 export 'src/requests_inspector_widget.dart';
 export 'src/enums/requests_methods.dart';
 export 'src/enums/show_inspector_on_enum.dart';
+export 'src/enums/item_type_filter_enum.dart';
 export './src/requests_inspector_interceptor.dart';
 export 'src/graphql_inspector_link.dart';
 export 'src/sse/sse_log_controller.dart';

@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/filters_dialog.dart';
-import 'package:requests_inspector/src/shared_widgets/inspector_option_switch.dart';
+import 'package:requests_inspector/src/shared_widgets/inspector_theme.dart';
 import 'package:requests_inspector/src/shared_widgets/request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/request_item.dart';
 import 'package:requests_inspector/src/shared_widgets/run_again_widget.dart';
-import 'package:requests_inspector/src/shared_widgets/sse_logs_page.dart';
-import 'package:requests_inspector/src/stopper_filters_dialog.dart';
+import 'package:requests_inspector/src/shared_widgets/slack_icon.dart';
+import 'package:requests_inspector/src/shared_widgets/sse_connection_details_page.dart';
+import 'package:requests_inspector/src/shared_widgets/sse_connection_item.dart';
 import '../../requests_inspector.dart';
 import '../enums/share_type_enum.dart';
 
@@ -17,20 +18,23 @@ class Inspector extends StatelessWidget {
 
   final GlobalKey<NavigatorState>? _navigatorKey;
 
-  bool showStopperDialogsAllowed() => _navigatorKey?.currentContext != null;
-
   @override
   Widget build(BuildContext context) {
     return Selector<InspectorController, bool>(
       selector: (_, controller) => controller.isDarkMode,
       builder: (context, isDarkMode, child) {
         return Theme(
-          data: isDarkMode
-              ? ThemeData.dark().copyWith(
-                  colorScheme: ColorScheme.dark(primary: Colors.grey[800]!),
-                )
-              : ThemeData.light(),
+          data: ThemeData(
+            useMaterial3: true,
+            brightness: isDarkMode ? Brightness.dark : Brightness.light,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: InspectorTheme.primary,
+              brightness: isDarkMode ? Brightness.dark : Brightness.light,
+            ),
+            scaffoldBackgroundColor: InspectorTheme.background(isDarkMode),
+          ),
           child: Scaffold(
+            backgroundColor: InspectorTheme.background(isDarkMode),
             appBar: _buildAppBar(isDarkMode),
             body: _buildBody(isDarkMode: isDarkMode),
             floatingActionButton: _buildShareFloatingButton(),
@@ -42,15 +46,32 @@ class Inspector extends StatelessWidget {
 
   AppBar _buildAppBar(bool isDarkMode) {
     return AppBar(
-      // Set background color based on dark mode status
-      backgroundColor: isDarkMode ? Colors.black : Colors.white,
+      backgroundColor: InspectorTheme.surface(isDarkMode),
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shape:
+          Border(bottom: BorderSide(color: InspectorTheme.border(isDarkMode))),
 
       // Set default icon color for all icons inside AppBar (instead of per icon)
       iconTheme: IconThemeData(
         color: isDarkMode ? Colors.white : Colors.black87,
       ),
 
-      title: const Text('Inspector 🕵️'),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.api_rounded, color: InspectorTheme.primary),
+          const SizedBox(width: 8.0),
+          Text(
+            'Inspector',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: isDarkMode ? Colors.white : Colors.black87,
+            ),
+          ),
+        ],
+      ),
 
       leading: IconButton(
         // Use method from controller (doesn't require listening)
@@ -75,225 +96,49 @@ class Inspector extends StatelessWidget {
       Selector<InspectorController, int>(
         selector: (_, c) => c.selectedTab,
         builder: (context, selectedTab, _) {
-          return Row(
-            children: [
-              if (selectedTab == 1)
-                IconButton(
-                  onPressed: InspectorController().toggleSearchVisibility,
-                  icon: const Icon(Icons.search),
-                  tooltip: 'Search',
+          if (selectedTab == 0) {
+            return TextButton(
+              onPressed: () => _showAreYouSureDialog(
+                context,
+                onYes: () {
+                  InspectorController().clearAllRequests();
+                  SseLogController.clear();
+                },
+              ),
+              child: Text(
+                'Clear All',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white : Colors.black87,
                 ),
-              selectedTab == 0
-                  ? TextButton(
-                      onPressed: () => _showAreYouSureDialog(
-                        context,
-                        onYes: InspectorController().clearAllRequests,
-                      ),
-                      child: Text(
-                        'Clear All',
-                        style: TextStyle(
-                          color: isDarkMode ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                    )
-                  : selectedTab == 2
-                      ? TextButton(
-                          onPressed: () => _showAreYouSureDialog(
-                            context,
-                            onYes: SseLogController.clear,
-                          ),
-                          child: Text(
-                            'Clear All',
-                            style: TextStyle(
-                              color: isDarkMode ? Colors.white : Colors.black87,
-                            ),
-                          ),
-                        )
-                      : RunAgainButton(
-                          key: ValueKey(
-                            InspectorController().selectedRequest.hashCode,
-                          ),
-                          onTap: InspectorController().runAgain,
-                          isDarkMode: isDarkMode,
-                        ),
-            ],
+              ),
+            );
+          }
+
+          // Details tab: search + run-again only make sense for an HTTP
+          // request, not for a selected SSE connection.
+          return Selector<InspectorController, RequestDetails?>(
+            selector: (_, c) => c.selectedRequest,
+            builder: (context, selectedRequest, _) {
+              if (selectedRequest == null) return const SizedBox();
+              return Row(
+                children: [
+                  IconButton(
+                    onPressed: InspectorController().toggleSearchVisibility,
+                    icon: const Icon(Icons.search),
+                    tooltip: 'Search',
+                  ),
+                  RunAgainButton(
+                    key: ValueKey(selectedRequest.hashCode),
+                    onTap: InspectorController().runAgain,
+                    isDarkMode: isDarkMode,
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
-      _buildPopUpMenu(isDarkMode),
     ];
-  }
-
-  Widget _buildPopUpMenu(bool isDarkMode) {
-    return PopupMenuButton(
-      icon: Icon(
-        Icons.more_vert,
-        color: isDarkMode ? Colors.white : Colors.black87,
-      ),
-      itemBuilder: (context) => [
-        // Dark Mode Toggle
-        PopupMenuItem(
-          padding: EdgeInsets.zero,
-          child: InkWell(
-            onTap: InspectorController().toggleInspectorTheme,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Dark Mode'),
-                  InspectorOptionSwitch(
-                    value: isDarkMode,
-                    onChanged: (value) =>
-                        InspectorController().toggleInspectorTheme(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // JSON Tree View Toggle
-        PopupMenuItem(
-          padding: EdgeInsets.zero,
-          child: InkWell(
-            onTap: InspectorController().toggleInspectorJsonView,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('JSON Tree View'),
-                  Selector<InspectorController, bool>(
-                    selector: (_, controller) => controller.isTreeView,
-                    builder: (context, isTreeView, __) {
-                      return InspectorOptionSwitch(
-                        value: isTreeView,
-                        onChanged: (value) =>
-                            InspectorController().toggleInspectorJsonView(),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-
-        // JSON Expanded Toggle
-        PopupMenuItem(
-          padding: EdgeInsets.zero,
-          child: InkWell(
-            onTap: InspectorController().toggleExpandChildren,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Expand Children'),
-                  Selector<InspectorController, bool>(
-                    selector: (_, controller) => controller.expandChildren,
-                    builder: (context, expandChildren, __) {
-                      return InspectorOptionSwitch(
-                        value: expandChildren,
-                        onChanged: (value) =>
-                            InspectorController().toggleExpandChildren(),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        if (showStopperDialogsAllowed()) ...[
-          PopupMenuItem(
-            padding: EdgeInsets.zero,
-            // Remove default padding for InkWell to fill
-            child: InkWell(
-              onTap: () {
-                showDialog<void>(
-                  context: context,
-                  builder: (context) => StopperFiltersDialog(
-                    isDarkMode: isDarkMode,
-                    stopperType: StopperType.request,
-                  ),
-                );
-              },
-              child: Selector<InspectorController, bool>(
-                selector: (_, inspectorController) =>
-                    inspectorController.requestStopperEnabled,
-                builder: (context, requestStopperEnabled, _) => Padding(
-                  // Add padding back for content
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8.0,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Requests Stopper'),
-                      InspectorOptionSwitch(
-                        value: requestStopperEnabled,
-                        onChanged: (value) {
-                          InspectorController().requestStopperEnabled = value;
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          PopupMenuItem(
-            padding: EdgeInsets.zero,
-            // Remove default padding for InkWell to fill
-            child: InkWell(
-              onTap: () {
-                showDialog<void>(
-                  context: context,
-                  builder: (context) => StopperFiltersDialog(
-                    isDarkMode: isDarkMode,
-                    stopperType: StopperType.response,
-                  ),
-                );
-              },
-              child: Selector<InspectorController, bool>(
-                selector: (_, inspectorController) =>
-                    inspectorController.responseStopperEnabled,
-                builder: (context, responseStopperEnabled, _) => Padding(
-                  // Add padding back for content
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8.0,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Responses Stopper'),
-                      InspectorOptionSwitch(
-                        value: responseStopperEnabled,
-                        onChanged: (value) {
-                          InspectorController().responseStopperEnabled = value;
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
   }
 
   Widget _buildBody({required bool isDarkMode}) {
@@ -312,31 +157,28 @@ class Inspector extends StatelessWidget {
   }
 
   Widget _buildTabBar({required int selectedTab, required bool isDarkMode}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildTabItem(
-          title: 'All',
-          isDarkMode: isDarkMode,
-          isSelected: selectedTab == 0,
-          isLeft: true,
-          onTap: () => InspectorController().selectedTab = 0,
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: InspectorTheme.border(isDarkMode)),
         ),
-        _buildTabItem(
-          title: 'Request Details',
-          isDarkMode: isDarkMode,
-          isSelected: selectedTab == 1,
-          isLeft: false,
-          onTap: () => InspectorController().selectedTab = 1,
-        ),
-        _buildTabItem(
-          title: 'SSE Logs',
-          isDarkMode: isDarkMode,
-          isSelected: selectedTab == 2,
-          isLeft: false,
-          onTap: () => InspectorController().selectedTab = 2,
-        ),
-      ],
+      ),
+      child: Row(
+        children: [
+          _buildTabItem(
+            title: 'All',
+            isDarkMode: isDarkMode,
+            isSelected: selectedTab == 0,
+            onTap: () => InspectorController().selectedTab = 0,
+          ),
+          _buildTabItem(
+            title: 'Details',
+            isDarkMode: isDarkMode,
+            isSelected: selectedTab == 1,
+            onTap: () => InspectorController().selectedTab = 1,
+          ),
+        ],
+      ),
     );
   }
 
@@ -344,27 +186,32 @@ class Inspector extends StatelessWidget {
     required String title,
     required bool isSelected,
     required bool isDarkMode,
-    required bool isLeft,
     required VoidCallback onTap,
   }) {
     return Expanded(
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(12.0),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isDarkMode
-                ? (isSelected ? Colors.white : Colors.black87)
-                : (isSelected ? Colors.black87 : Colors.white),
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? InspectorTheme.primary : Colors.transparent,
+                width: 2.0,
+              ),
+            ),
           ),
           child: Text(
             title,
             style: TextStyle(
-              color: isDarkMode
-                  ? (isSelected ? Colors.black87 : Colors.white)
-                  : (isSelected ? Colors.white : Colors.black87),
-              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w300,
+              fontSize: 13.0,
+              color: isSelected
+                  ? InspectorTheme.primary
+                  : (isDarkMode ? Colors.white70 : Colors.black54),
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),
@@ -379,10 +226,33 @@ class Inspector extends StatelessWidget {
     if (selectedTab == 0) {
       return _buildAllRequests(isDarkMode: isDarkMode);
     }
-    if (selectedTab == 2) {
-      return [SseLogsPage(isDarkMode: isDarkMode)];
-    }
-    return [const RequestDetailsPage()];
+    return [_buildDetailsTab(isDarkMode)];
+  }
+
+  Widget _buildDetailsTab(bool isDarkMode) {
+    return Selector<InspectorController, RequestDetails?>(
+      selector: (_, c) => c.selectedRequest,
+      builder: (context, selectedRequest, _) {
+        if (selectedRequest != null) return const RequestDetailsPage();
+
+        return Selector<InspectorController, SseConnectionLog?>(
+          selector: (_, c) => c.selectedSseConnection,
+          builder: (context, selectedSseConnection, __) {
+            if (selectedSseConnection != null) {
+              return SseConnectionDetailsPage(
+                connection: selectedSseConnection,
+                isDarkMode: isDarkMode,
+              );
+            }
+            return const Expanded(
+              child: Center(
+                child: Text('Please select a request first to view details'),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Iterable<Widget> _buildAllRequests({required bool isDarkMode}) {
@@ -428,9 +298,10 @@ class Inspector extends StatelessWidget {
           inspectorController.selectedRequest != null,
       builder: (context, showShareButton, _) => showShareButton
           ? FloatingActionButton(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              child: const Icon(Icons.share),
+              backgroundColor: Colors.white,
+              elevation: 2,
+              tooltip: 'Share to Slack',
+              child: const SlackIcon(size: 26.0),
               onPressed: () async {
                 final box = context.findRenderObject() as RenderBox?;
 
@@ -523,38 +394,66 @@ class Inspector extends StatelessWidget {
 
   Widget _buildRequestsList(bool isDarkMode) {
     return Expanded(
-      child: Selector<InspectorController, List<RequestDetails>>(
-        selector: (_, controller) => controller.filteredRequestsList,
-        shouldRebuild: (previous, next) => true,
-        builder: (context, requests, _) => requests.isEmpty
-            ? Center(
-                child: Text(
-                InspectorController().areAnyFiltersApplied
-                    ? 'No requests can be found with applied filters'
-                    : 'No requests added yet',
-              ))
-            : Selector<InspectorController, RequestDetails?>(
-                selector: (_, controller) => controller.selectedRequest,
-                builder: (context, selectedRequest, _) => ListView.separated(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 6.0,
-                    horizontal: 6.0,
+      child: ValueListenableBuilder<List<String>>(
+        valueListenable: SseLogController.logs,
+        builder: (context, _, __) {
+          return Selector<InspectorController, String>(
+            selector: (_, controller) => controller.requestsListCacheKey,
+            builder: (context, _, __) {
+              final requests = InspectorController().filteredRequestsList;
+              final sseConnections =
+                  InspectorController().filterItemType == ItemTypeFilter.http
+                      ? const <SseConnectionLog>[]
+                      : SseLogController.connections;
+              final items = _TimelineItem.merge(requests, sseConnections);
+
+              if (items.isEmpty) {
+                return Center(
+                  child: Text(
+                    InspectorController().areAnyFiltersApplied
+                        ? 'No requests can be found with applied filters'
+                        : 'No requests added yet',
                   ),
-                  separatorBuilder: (_, __) => const SizedBox(height: 6.0),
-                  itemCount: requests.length,
-                  itemBuilder: (context, index) {
-                    final request = requests[index];
-                    return RequestItemWidget(
-                      request: request,
-                      isSelected: selectedRequest == request,
-                      isDarkMode: isDarkMode,
-                      onTap: (itemContext, tappedRequest) {
-                        InspectorController().selectedRequest = tappedRequest;
-                      },
-                    );
-                  },
-                ),
-              ),
+                );
+              }
+
+              return Selector<InspectorController, RequestDetails?>(
+                selector: (_, controller) => controller.selectedRequest,
+                builder: (context, selectedRequest, _) {
+                  final selectedSseId =
+                      InspectorController().selectedSseConnection?.id;
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(12.0, 4.0, 12.0, 12.0),
+                    separatorBuilder: (_, __) => const SizedBox(height: 8.0),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      final sseConnection = item.sseConnection;
+                      if (sseConnection != null) {
+                        return SseConnectionItemWidget(
+                          connection: sseConnection,
+                          isSelected: sseConnection.id == selectedSseId,
+                          isDarkMode: isDarkMode,
+                          onTap: () => InspectorController()
+                              .selectSseConnection(sseConnection),
+                        );
+                      }
+                      final request = item.request!;
+                      return RequestItemWidget(
+                        request: request,
+                        isSelected: selectedRequest == request,
+                        isDarkMode: isDarkMode,
+                        onTap: (itemContext, tappedRequest) {
+                          InspectorController().selectedRequest = tappedRequest;
+                        },
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -613,11 +512,21 @@ class __SearchFieldState extends State<_SearchField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
+      style: TextStyle(
+        color: widget.isDarkMode ? Colors.white : Colors.black87,
+        fontSize: 14.0,
+      ),
       decoration: InputDecoration(
         hintText: 'Search by URL',
-        fillColor: widget.isDarkMode ? Colors.black : Colors.white,
+        hintStyle: TextStyle(
+          color: widget.isDarkMode ? Colors.white38 : Colors.black38,
+        ),
+        fillColor: InspectorTheme.surface(widget.isDarkMode),
         filled: true,
-        prefixIcon: const Icon(Icons.search),
+        prefixIcon: Icon(
+          Icons.search,
+          color: widget.isDarkMode ? Colors.white54 : Colors.black45,
+        ),
         suffixIcon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -634,17 +543,59 @@ class __SearchFieldState extends State<_SearchField> {
               builder: (context, areAnyFiltersApplied, _) => IconButton(
                 icon: Icon(
                   Icons.filter_list,
-                  color: areAnyFiltersApplied ? Colors.orange : null,
+                  color: areAnyFiltersApplied ? InspectorTheme.primary : null,
                 ),
                 onPressed: widget.onFiltersTap,
               ),
             ),
           ],
         ),
-        border: const OutlineInputBorder(),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(InspectorTheme.radius),
+          borderSide: BorderSide(
+            color: InspectorTheme.border(widget.isDarkMode),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(InspectorTheme.radius),
+          borderSide: BorderSide(
+            color: InspectorTheme.border(widget.isDarkMode),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(InspectorTheme.radius),
+          borderSide:
+              const BorderSide(color: InspectorTheme.primary, width: 1.5),
+        ),
         isDense: true,
       ),
       onChanged: InspectorController().searchForRequests,
     );
+  }
+}
+
+/// A single row in the merged "All" timeline: either an HTTP [RequestDetails]
+/// or an [SseConnectionLog], sorted together by time (newest first).
+class _TimelineItem {
+  const _TimelineItem._({this.request, this.sseConnection, required this.time});
+
+  final RequestDetails? request;
+  final SseConnectionLog? sseConnection;
+  final DateTime time;
+
+  static List<_TimelineItem> merge(
+    List<RequestDetails> requests,
+    List<SseConnectionLog> sseConnections,
+  ) {
+    final items = <_TimelineItem>[
+      ...requests.map(
+        (r) => _TimelineItem._(request: r, time: r.sentTime),
+      ),
+      ...sseConnections.map(
+        (c) => _TimelineItem._(sseConnection: c, time: c.startedAt),
+      ),
+    ];
+    items.sort((a, b) => b.time.compareTo(a.time));
+    return items;
   }
 }

@@ -10,6 +10,7 @@ import '../helpers/search_helper.dart';
 import '../json_tree_view_widget.dart';
 import 'highlighted_text.dart';
 import 'search_widget.dart';
+import 'status_method_chip.dart';
 
 class _SearchState {
   final bool isTreeView;
@@ -106,44 +107,34 @@ class RequestDetailsPage extends StatelessWidget {
         final timeAndUrlOffset = currentOffset;
         currentOffset += timeAndUrlMatches;
 
-        final headersPretty = request.headers != null
-            ? JsonPrettyConverter().convert(request.headers)
-            : '';
+        final headersPretty = request.headersPretty;
         final headersMatches =
             SearchHelper.findMatches(text: headersPretty, query: query).length;
         final headersOffset = currentOffset;
         currentOffset += headersMatches;
 
-        final queryParamsPretty = request.queryParameters != null
-            ? JsonPrettyConverter().convert(request.queryParameters)
-            : '';
+        final queryParamsPretty = request.queryParametersPretty;
         final queryParamsMatches =
             SearchHelper.findMatches(text: queryParamsPretty, query: query)
                 .length;
         final queryParamsOffset = currentOffset;
         currentOffset += queryParamsMatches;
 
-        final requestBodyPretty = request.requestBody != null
-            ? JsonPrettyConverter().convert(request.requestBody)
-            : '';
+        final requestBodyPretty = request.requestBodyPretty;
         final requestBodyMatches =
             SearchHelper.findMatches(text: requestBodyPretty, query: query)
                 .length;
         final requestBodyOffset = currentOffset;
         currentOffset += requestBodyMatches;
 
-        final graphqlVarsPretty = request.graphqlRequestVars != null
-            ? JsonPrettyConverter().convert(request.graphqlRequestVars)
-            : '';
+        final graphqlVarsPretty = request.graphqlRequestVarsPretty;
         final graphqlVarsMatches =
             SearchHelper.findMatches(text: graphqlVarsPretty, query: query)
                 .length;
         final graphqlVarsOffset = currentOffset;
         currentOffset += graphqlVarsMatches;
 
-        final responseBodyPretty = request.responseBody != null
-            ? JsonPrettyConverter().convert(request.responseBody)
-            : '';
+        final responseBodyPretty = request.responseBodyPretty;
         final responseBodyMatches =
             SearchHelper.findMatches(text: responseBodyPretty, query: query)
                 .length;
@@ -173,7 +164,7 @@ class RequestDetailsPage extends StatelessWidget {
               children: [
                 _buildExpandableSection(
                   context: context,
-                  txtCopy: JsonPrettyConverter().convert(request.url),
+                  txtCopy: request.urlPretty,
                   titleWidget: _buildRequestNameAndStatus(
                     method: request.requestMethod,
                     requestName: request.requestName,
@@ -485,18 +476,17 @@ class RequestDetailsPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '${method.name} - $requestName',
-          style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
+        Row(
+          children: [
+            MethodChip(method: method),
+            const SizedBox(width: 6.0),
+            StatusChip(statusCode: statusCode),
+          ],
         ),
-        const SizedBox(height: 4.0),
+        const SizedBox(height: 6.0),
         Text(
-          'Status: ${statusCode ?? 'N/A'}',
-          style: TextStyle(
-            fontSize: 14.0,
-            color: InspectorHelper.specifyStatusCodeColor(statusCode),
-            fontWeight: FontWeight.w500,
-          ),
+          requestName,
+          style: const TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold),
         ),
       ],
     );

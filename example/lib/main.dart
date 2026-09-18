@@ -36,6 +36,7 @@ class _MyAppState extends State<MyApp> {
     );
     /*for restful apis Interceptor example use => fetchPostsUsingInterceptor() */
     // fetchPostsGraphQlUsingGraphQLFlutterInterceptor() /*for graph ql Interceptor example */;
+    _demoSseLogs();
     super.initState();
   }
 
@@ -93,6 +94,19 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
     );
+  }
+
+  /// Demoes the SSE logs feature: each `SseLogController.log` call gets
+  /// grouped into a connection item in the Inspector's "All" tab.
+  void _demoSseLogs() {
+    SseLogController.log('CONNECTING -> wss://example.com/stream/prices');
+    SseLogController.log('event: price_update {"symbol":"BTC","price":67210}');
+    SseLogController.log('event: price_update {"symbol":"ETH","price":3190}');
+    Future.delayed(const Duration(seconds: 2), () {
+      SseLogController.log('CONNECTING -> wss://example.com/stream/orders');
+      SseLogController.log('event: order_filled {"id":42}');
+      SseLogController.log('CLOSED');
+    });
   }
 }
 
