@@ -291,7 +291,7 @@ class Inspector extends StatelessWidget {
                 height: 44.0,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: InspectorTheme.statusError.withOpacity(0.12),
+                  color: InspectorTheme.statusError.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12.0),
                 ),
                 child: const Icon(

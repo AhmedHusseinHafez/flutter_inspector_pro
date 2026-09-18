@@ -283,10 +283,10 @@ class RequestDetailsPage extends StatelessWidget {
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor.withOpacity(0.3)),
+          border: Border.all(color: borderColor.withValues(alpha: 0.3)),
           boxShadow: [
             BoxShadow(
-              color: theme.shadowColor.withOpacity(0.05),
+              color: theme.shadowColor.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

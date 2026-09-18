@@ -47,7 +47,7 @@ class _RunAgainButtonState extends State<RunAgainButton> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
                 decoration: BoxDecoration(
-                  color: InspectorTheme.primary.withOpacity(0.12),
+                  color: InspectorTheme.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20.0),
                 ),
                 child: const Row(
