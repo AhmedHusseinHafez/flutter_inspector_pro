@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -46,6 +47,7 @@ class _MyAppState extends State<MyApp> {
       fetchPostsUsingHttpClient();
       _demoQueryMethod();
       _demoSseLogs();
+      _demoFileLogging();
     });
   }
 
@@ -103,6 +105,34 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
     );
+  }
+
+  /// Demoes the automatic "Files" tab for file types beyond the avatar
+  /// images already shown via `Image.network` in [_PostItemBuilder] - no
+  /// wrapper needed, `RequestsInspectorHttpOverrides` observes every
+  /// `dart:io` `HttpClient` request in the app. `HEAD` requests are used
+  /// here purely to keep this demo lightweight (no body downloaded); the
+  /// Files tab only ever inspects response headers regardless of verb.
+  void _demoFileLogging() {
+    const sampleFileUrls = [
+      'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // PDF
+      'https://www.w3schools.com/html/mov_bbb.mp4', // Video
+      'https://www.w3schools.com/html/horse.mp3', // Audio
+      'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.ttf', // Font
+    ];
+
+    for (final url in sampleFileUrls) {
+      _headRequest(url);
+    }
+  }
+
+  Future<void> _headRequest(String url) async {
+    try {
+      final request = await HttpClient().headUrl(Uri.parse(url));
+      await request.close();
+    } catch (_) {
+      // Demo only - a flaky sample URL shouldn't break the example app.
+    }
   }
 
   /// Demoes the SSE logs feature: each `SseLogController.log` call gets
