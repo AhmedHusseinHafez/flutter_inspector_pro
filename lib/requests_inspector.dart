@@ -14,3 +14,8 @@ export 'src/sse/sse_log_controller.dart';
 export 'src/image_request_details.dart';
 export 'src/image_log_controller.dart';
 export 'src/image_http_overrides.dart';
+export 'src/enums/firebase_messaging_event_type_enum.dart';
+export 'src/firebase_messaging/firebase_messaging_event.dart';
+export 'src/firebase_messaging/firebase_messaging_inspector_config.dart';
+export 'src/firebase_messaging/firebase_messaging_log_controller.dart';
+export 'src/firebase_messaging/firebase_messaging_inspector.dart';

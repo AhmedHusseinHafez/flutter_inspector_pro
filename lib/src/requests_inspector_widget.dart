@@ -21,6 +21,8 @@ class RequestsInspector extends StatefulWidget {
     bool defaultIsDarkMode = true,
     this.onInspectorOpened,
     this.onInspectorClosed,
+    FirebaseMessagingInspectorConfig firebaseMessaging =
+        const FirebaseMessagingInspectorConfig(),
   })  : _enabled = enabled,
         _hideInspectorBanner = hideInspectorBanner,
         _showInspectorOn = showInspectorOn,
@@ -28,7 +30,8 @@ class RequestsInspector extends StatefulWidget {
         _navigatorKey = navigatorKey,
         _defaultTreeViewEnabled = defaultTreeViewEnabled,
         _defaultExpandChildren = defaultExpandChildren,
-        _defaultIsDarkMode = defaultIsDarkMode;
+        _defaultIsDarkMode = defaultIsDarkMode,
+        _firebaseMessaging = firebaseMessaging;
 
   final bool _enabled;
   final bool _hideInspectorBanner;
@@ -38,6 +41,11 @@ class RequestsInspector extends StatefulWidget {
   final bool _defaultExpandChildren;
   final bool _defaultIsDarkMode;
   final GlobalKey<NavigatorState>? _navigatorKey;
+
+  /// Opt-in config to auto-capture Firebase Messaging events
+  /// (`onMessage`/`onMessageOpenedApp`/`getInitialMessage()`) into the
+  /// inspector. Disabled by default; see [FirebaseMessagingInspectorConfig].
+  final FirebaseMessagingInspectorConfig _firebaseMessaging;
 
   /// Called when the inspector screen is opened (long-press).
   final VoidCallback? onInspectorOpened;
@@ -57,6 +65,12 @@ class _RequestsInspectorState extends State<RequestsInspector> {
     // dart:io's HttpOverrides, the same mechanism Flutter DevTools' network
     // view uses - no changes required from the app using this package.
     if (widget._enabled) RequestsInspectorHttpOverrides.install();
+
+    // Automatically attaches to FirebaseMessaging.instance's streams when
+    // opted in - no listener code required from the app. No-ops (and never
+    // throws) if Firebase hasn't been initialized yet.
+    if (widget._enabled)
+      FirebaseMessagingInspector.attach(widget._firebaseMessaging);
   }
 
   @override

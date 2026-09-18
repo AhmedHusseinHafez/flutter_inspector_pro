@@ -36,6 +36,7 @@ class InspectorTheme {
   static const Color methodQuery = Color(0xFF667085);
   static const Color methodWs = Color(0xFF0BA5EC);
   static const Color sse = Color(0xFF0BA5EC);
+  static const Color firebaseMessaging = Color(0xFFF7941D);
 
   // Status badge colors
   static const Color statusOk = Color(0xFF12B76A);

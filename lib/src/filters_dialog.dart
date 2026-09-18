@@ -19,7 +19,8 @@ class _FiltersDialogState extends State<FiltersDialog> {
   RequestMethod? _selectedMethod;
   ItemTypeFilter _itemType = ItemTypeFilter.all;
 
-  bool get _httpFiltersEnabled => _itemType != ItemTypeFilter.sse;
+  bool get _httpFiltersEnabled =>
+      _itemType == ItemTypeFilter.all || _itemType == ItemTypeFilter.http;
 
   @override
   void initState() {
@@ -77,6 +78,12 @@ class _FiltersDialogState extends State<FiltersDialog> {
                 _typeChip(ItemTypeFilter.http, 'HTTP', isDarkMode),
                 const SizedBox(width: 8.0),
                 _typeChip(ItemTypeFilter.sse, 'SSE', isDarkMode),
+                const SizedBox(width: 8.0),
+                _typeChip(
+                  ItemTypeFilter.firebaseMessaging,
+                  'Firebase',
+                  isDarkMode,
+                ),
               ],
             ),
             const SizedBox(height: 20.0),

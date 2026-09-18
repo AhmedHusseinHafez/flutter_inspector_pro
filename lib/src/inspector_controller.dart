@@ -89,6 +89,8 @@ class InspectorController extends ChangeNotifier {
   final _requestsList = <RequestDetails>[];
   RequestDetails? _selectedRequest;
   SseConnectionLog? _selectedSseConnection;
+  FirebaseMessagingEvent? _selectedFirebaseMessagingEvent;
+  ImageRequestDetails? _selectedImage;
 
   // Bumped whenever _requestsList is mutated, used to cache filteredRequestsList
   // so it isn't recomputed on every unrelated notifyListeners() (e.g. dark mode toggle).
@@ -127,6 +129,11 @@ class InspectorController extends ChangeNotifier {
 
   SseConnectionLog? get selectedSseConnection => _selectedSseConnection;
 
+  FirebaseMessagingEvent? get selectedFirebaseMessagingEvent =>
+      _selectedFirebaseMessagingEvent;
+
+  ImageRequestDetails? get selectedImage => _selectedImage;
+
   bool get isSearchVisible => _isSearchVisible;
 
   String get searchQuery => _searchQuery;
@@ -161,7 +168,8 @@ class InspectorController extends ChangeNotifier {
       return _cachedFilteredList!;
     }
 
-    if (_filterItemType == ItemTypeFilter.sse) {
+    if (_filterItemType == ItemTypeFilter.sse ||
+        _filterItemType == ItemTypeFilter.firebaseMessaging) {
       _cachedFilteredList = const [];
       _cachedFilterKey = key;
       return _cachedFilteredList!;
@@ -206,9 +214,13 @@ class InspectorController extends ChangeNotifier {
   set selectedRequest(RequestDetails? value) {
     if (_selectedRequest == value &&
         _selectedSseConnection == null &&
+        _selectedFirebaseMessagingEvent == null &&
+        _selectedImage == null &&
         _selectedTab == 1) return;
     _selectedRequest = value;
     _selectedSseConnection = null;
+    _selectedFirebaseMessagingEvent = null;
+    _selectedImage = null;
     _selectedTab = 1;
     _updateTotalMatches();
     notifyListeners();
@@ -217,9 +229,41 @@ class InspectorController extends ChangeNotifier {
   void selectSseConnection(SseConnectionLog connection) {
     if (_selectedSseConnection?.id == connection.id &&
         _selectedRequest == null &&
+        _selectedFirebaseMessagingEvent == null &&
+        _selectedImage == null &&
         _selectedTab == 1) return;
     _selectedSseConnection = connection;
     _selectedRequest = null;
+    _selectedFirebaseMessagingEvent = null;
+    _selectedImage = null;
+    _selectedTab = 1;
+    notifyListeners();
+  }
+
+  void selectFirebaseMessagingEvent(FirebaseMessagingEvent event) {
+    if (_selectedFirebaseMessagingEvent?.id == event.id &&
+        _selectedRequest == null &&
+        _selectedSseConnection == null &&
+        _selectedImage == null &&
+        _selectedTab == 1) return;
+    _selectedFirebaseMessagingEvent = event;
+    _selectedRequest = null;
+    _selectedSseConnection = null;
+    _selectedImage = null;
+    _selectedTab = 1;
+    notifyListeners();
+  }
+
+  void selectImage(ImageRequestDetails image) {
+    if (_selectedImage == image &&
+        _selectedRequest == null &&
+        _selectedSseConnection == null &&
+        _selectedFirebaseMessagingEvent == null &&
+        _selectedTab == 1) return;
+    _selectedImage = image;
+    _selectedRequest = null;
+    _selectedSseConnection = null;
+    _selectedFirebaseMessagingEvent = null;
     _selectedTab = 1;
     notifyListeners();
   }
@@ -375,6 +419,55 @@ class InspectorController extends ChangeNotifier {
       ..writeln()
       ..writeln('==================[Event Log]===================')
       ..writeln(connection.lines.join('\n'));
+
+    SharePlus.instance.share(
+      ShareParams(
+        text: buffer.toString(),
+        sharePositionOrigin: sharePositionOrigin,
+      ),
+    );
+  }
+
+  /// Shares the selected Firebase Messaging event directly to Slack (or the
+  /// platform share sheet) as a structured, human-readable log entry.
+  void shareSelectedFirebaseMessagingEvent({Rect? sharePositionOrigin}) {
+    final event = _selectedFirebaseMessagingEvent!;
+    final receivedAtText = InspectorHelper.extractTimeText(event.receivedAt);
+
+    final headerLines = [
+      'Event: ${event.type.label}',
+      'Received at: $receivedAtText',
+      if (event.messageId != null) 'Message ID: ${event.messageId}',
+      if (event.senderId != null) 'Sender ID: ${event.senderId}',
+      if (event.from != null) 'From: ${event.from}',
+      if (event.messageType != null) 'Message type: ${event.messageType}',
+      if (event.collapseKey != null) 'Collapse key: ${event.collapseKey}',
+      if (event.ttl != null) 'TTL: ${event.ttl}',
+      if (event.sentTime != null) 'Sent at: ${event.sentTime}',
+    ];
+
+    final buffer = StringBuffer()
+      ..writeln('================[Firebase Messaging]=================')
+      ..writeln(headerLines.join('\n'));
+
+    if (event.hasNotification) {
+      final notificationLines = [
+        if (event.notificationTitle != null)
+          'Title: ${event.notificationTitle}',
+        if (event.notificationBody != null) 'Body: ${event.notificationBody}',
+      ];
+      buffer
+        ..writeln()
+        ..writeln('==================[Notification]===================')
+        ..writeln(notificationLines.join('\n'));
+    }
+
+    if (event.data != null) {
+      buffer
+        ..writeln()
+        ..writeln('=====================[Data]========================')
+        ..writeln(event.dataPretty);
+    }
 
     SharePlus.instance.share(
       ShareParams(

@@ -1,3 +1,4 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:requests_inspector/requests_inspector.dart';
 
@@ -63,6 +64,38 @@ void main() {
 
       expect(inspectorController.filteredRequestsList.length, 1);
       expect(inspectorController.filteredRequestsList.first.url, 'http://test1.com');
+    });
+
+    test('Selecting a Firebase Messaging event clears other selections', () {
+      final request = RequestDetails(
+        url: 'http://example.com',
+        requestMethod: RequestMethod.GET,
+      );
+      inspectorController.addNewRequest(request);
+      inspectorController.selectedRequest = request;
+      expect(inspectorController.selectedRequest, request);
+
+      final event = FirebaseMessagingEvent.fromRemoteMessage(
+        RemoteMessage(messageId: 'msg-1'),
+        FirebaseMessagingEventType.onMessage,
+      );
+      inspectorController.selectFirebaseMessagingEvent(event);
+
+      expect(inspectorController.selectedFirebaseMessagingEvent, event);
+      expect(inspectorController.selectedRequest, isNull);
+      expect(inspectorController.selectedTab, 1);
+    });
+
+    test('Setting itemType filter to firebaseMessaging hides HTTP requests', () {
+      final request = RequestDetails(
+        url: 'http://example.com',
+        requestMethod: RequestMethod.GET,
+      );
+      inspectorController.addNewRequest(request);
+
+      inspectorController.setItemTypeFilter(ItemTypeFilter.firebaseMessaging);
+
+      expect(inspectorController.filteredRequestsList, isEmpty);
     });
   });
 }

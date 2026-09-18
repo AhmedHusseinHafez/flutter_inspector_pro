@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/filters_dialog.dart';
 import 'package:requests_inspector/src/shared_widgets/empty_state.dart';
+import 'package:requests_inspector/src/shared_widgets/firebase_messaging_details_page.dart';
+import 'package:requests_inspector/src/shared_widgets/firebase_messaging_item.dart';
 import 'package:requests_inspector/src/shared_widgets/image_log_item.dart';
+import 'package:requests_inspector/src/shared_widgets/image_request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/inspector_theme.dart';
 import 'package:requests_inspector/src/shared_widgets/request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/request_item.dart';
@@ -115,6 +118,7 @@ class Inspector extends StatelessWidget {
                     InspectorController().clearAllRequests();
                     SseLogController.clear();
                     ImageLogController.clear();
+                    FirebaseMessagingLogController.clear();
                   },
                 );
 
@@ -286,13 +290,37 @@ class Inspector extends StatelessWidget {
                 isDarkMode: isDarkMode,
               );
             }
-            return Expanded(
-              child: EmptyState(
-                icon: Icons.touch_app_outlined,
-                title: 'Nothing selected',
-                message: 'Select an item to view its details here.',
-                isDarkMode: isDarkMode,
-              ),
+
+            return Selector<InspectorController, FirebaseMessagingEvent?>(
+              selector: (_, c) => c.selectedFirebaseMessagingEvent,
+              builder: (context, selectedFcmEvent, ___) {
+                if (selectedFcmEvent != null) {
+                  return FirebaseMessagingDetailsPage(
+                    event: selectedFcmEvent,
+                    isDarkMode: isDarkMode,
+                  );
+                }
+
+                return Selector<InspectorController, ImageRequestDetails?>(
+                  selector: (_, c) => c.selectedImage,
+                  builder: (context, selectedImage, ____) {
+                    if (selectedImage != null) {
+                      return ImageRequestDetailsPage(
+                        image: selectedImage,
+                        isDarkMode: isDarkMode,
+                      );
+                    }
+                    return Expanded(
+                      child: EmptyState(
+                        icon: Icons.touch_app_outlined,
+                        title: 'Nothing selected',
+                        message: 'Select an item to view its details here.',
+                        isDarkMode: isDarkMode,
+                      ),
+                    );
+                  },
+                );
+              },
             );
           },
         );
@@ -410,7 +438,9 @@ class Inspector extends StatelessWidget {
     return Selector<InspectorController, bool>(
       selector: (_, c) =>
           c.selectedTab == 1 &&
-          (c.selectedRequest != null || c.selectedSseConnection != null),
+          (c.selectedRequest != null ||
+              c.selectedSseConnection != null ||
+              c.selectedFirebaseMessagingEvent != null),
       builder: (context, showButtons, _) {
         if (!showButtons) return const SizedBox();
         return Column(
@@ -485,6 +515,10 @@ class Inspector extends StatelessWidget {
           controller.shareSelectedSseConnection(
             sharePositionOrigin: sharePositionOrigin,
           );
+        } else if (controller.selectedFirebaseMessagingEvent != null) {
+          controller.shareSelectedFirebaseMessagingEvent(
+            sharePositionOrigin: sharePositionOrigin,
+          );
         }
       },
     );
@@ -495,105 +529,143 @@ class Inspector extends StatelessWidget {
       child: ValueListenableBuilder<List<String>>(
         valueListenable: SseLogController.logs,
         builder: (context, _, __) {
-          return Selector<InspectorController, String>(
-            selector: (_, controller) => controller.requestsListCacheKey,
+          return ValueListenableBuilder<List<FirebaseMessagingEvent>>(
+            valueListenable: FirebaseMessagingLogController.events,
             builder: (context, _, __) {
-              final requests = InspectorController().filteredRequestsList;
-              final sseConnections =
-                  InspectorController().filterItemType == ItemTypeFilter.http
-                      ? const <SseConnectionLog>[]
-                      : SseLogController.connections;
-              final items = _TimelineItem.merge(requests, sseConnections);
+              return Selector<InspectorController, String>(
+                selector: (_, controller) => controller.requestsListCacheKey,
+                builder: (context, _, __) {
+                  final filterItemType = InspectorController().filterItemType;
+                  final requests = InspectorController().filteredRequestsList;
+                  final sseConnections =
+                      filterItemType == ItemTypeFilter.http ||
+                              filterItemType == ItemTypeFilter.firebaseMessaging
+                          ? const <SseConnectionLog>[]
+                          : SseLogController.connections;
+                  final fcmEvents = filterItemType == ItemTypeFilter.http ||
+                          filterItemType == ItemTypeFilter.sse
+                      ? const <FirebaseMessagingEvent>[]
+                      : FirebaseMessagingLogController.events.value;
+                  final items =
+                      _TimelineItem.merge(requests, sseConnections, fcmEvents);
 
-              if (items.isEmpty) {
-                final filtersApplied =
-                    InspectorController().areAnyFiltersApplied;
-                return EmptyState(
-                  icon: filtersApplied
-                      ? Icons.filter_alt_off_outlined
-                      : Icons.inbox_outlined,
-                  title: filtersApplied
-                      ? 'No matching requests'
-                      : 'No requests yet',
-                  message: filtersApplied
-                      ? 'Try adjusting or clearing your filters to see more results.'
-                      : 'Requests made by your app will appear here as they happen.',
-                  isDarkMode: isDarkMode,
-                );
-              }
+                  if (items.isEmpty) {
+                    final filtersApplied =
+                        InspectorController().areAnyFiltersApplied;
+                    return EmptyState(
+                      icon: filtersApplied
+                          ? Icons.filter_alt_off_outlined
+                          : Icons.inbox_outlined,
+                      title: filtersApplied
+                          ? 'No matching requests'
+                          : 'No requests yet',
+                      message: filtersApplied
+                          ? 'Try adjusting or clearing your filters to see more results.'
+                          : 'Requests made by your app will appear here as they happen.',
+                      isDarkMode: isDarkMode,
+                    );
+                  }
 
-              final rows = _groupByDay(items);
+                  final rows = _groupByDay(items);
 
-              return Selector<InspectorController, RequestDetails?>(
-                selector: (_, controller) => controller.selectedRequest,
-                builder: (context, selectedRequest, _) {
-                  final selectedSseId =
-                      InspectorController().selectedSseConnection?.id;
-                  return ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12.0, 4.0, 12.0, 12.0),
-                    itemCount: rows.length,
-                    itemBuilder: (context, index) {
-                      final row = rows[index];
-                      if (row is String) {
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            top: index == 0 ? 0.0 : 16.0,
-                            bottom: 8.0,
-                          ),
-                          child: Text(
-                            row,
-                            style: TextStyle(
-                              fontSize: 12.0,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                              color:
-                                  isDarkMode ? Colors.white38 : Colors.black38,
+                  return Selector<InspectorController, RequestDetails?>(
+                    selector: (_, controller) => controller.selectedRequest,
+                    builder: (context, selectedRequest, _) {
+                      final selectedSseId =
+                          InspectorController().selectedSseConnection?.id;
+                      final selectedFcmId = InspectorController()
+                          .selectedFirebaseMessagingEvent
+                          ?.id;
+                      return ListView.builder(
+                        padding:
+                            const EdgeInsets.fromLTRB(12.0, 4.0, 12.0, 12.0),
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) {
+                          final row = rows[index];
+                          if (row is String) {
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                top: index == 0 ? 0.0 : 16.0,
+                                bottom: 8.0,
+                              ),
+                              child: Text(
+                                row,
+                                style: TextStyle(
+                                  fontSize: 12.0,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.6,
+                                  color: isDarkMode
+                                      ? Colors.white38
+                                      : Colors.black38,
+                                ),
+                              ),
+                            );
+                          }
+
+                          final item = row as _TimelineItem;
+                          final fcmEvent = item.firebaseMessagingEvent;
+                          if (fcmEvent != null) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Dismissible(
+                                key: ValueKey(fcmEvent.id),
+                                direction: DismissDirection.endToStart,
+                                background: _deleteBackground(),
+                                onDismissed: (_) =>
+                                    FirebaseMessagingLogController.remove(
+                                        fcmEvent),
+                                child: FirebaseMessagingItemWidget(
+                                  event: fcmEvent,
+                                  isSelected: fcmEvent.id == selectedFcmId,
+                                  isDarkMode: isDarkMode,
+                                  onTap: () => InspectorController()
+                                      .selectFirebaseMessagingEvent(fcmEvent),
+                                ),
+                              ),
+                            );
+                          }
+                          final sseConnection = item.sseConnection;
+                          if (sseConnection != null) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Dismissible(
+                                key: ValueKey(sseConnection.id),
+                                direction: DismissDirection.endToStart,
+                                background: _deleteBackground(),
+                                onDismissed: (_) =>
+                                    SseLogController.removeConnection(
+                                        sseConnection),
+                                child: SseConnectionItemWidget(
+                                  connection: sseConnection,
+                                  isSelected: sseConnection.id == selectedSseId,
+                                  isDarkMode: isDarkMode,
+                                  onTap: () => InspectorController()
+                                      .selectSseConnection(sseConnection),
+                                ),
+                              ),
+                            );
+                          }
+                          final request = item.request!;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Dismissible(
+                              key: ValueKey(request.id),
+                              direction: DismissDirection.endToStart,
+                              background: _deleteBackground(),
+                              onDismissed: (_) =>
+                                  InspectorController().removeRequest(request),
+                              child: RequestItemWidget(
+                                request: request,
+                                isSelected: selectedRequest == request,
+                                isDarkMode: isDarkMode,
+                                onTap: (itemContext, tappedRequest) {
+                                  InspectorController().selectedRequest =
+                                      tappedRequest;
+                                },
+                              ),
                             ),
-                          ),
-                        );
-                      }
-
-                      final item = row as _TimelineItem;
-                      final sseConnection = item.sseConnection;
-                      if (sseConnection != null) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Dismissible(
-                            key: ValueKey(sseConnection.id),
-                            direction: DismissDirection.endToStart,
-                            background: _deleteBackground(),
-                            onDismissed: (_) =>
-                                SseLogController.removeConnection(
-                                    sseConnection),
-                            child: SseConnectionItemWidget(
-                              connection: sseConnection,
-                              isSelected: sseConnection.id == selectedSseId,
-                              isDarkMode: isDarkMode,
-                              onTap: () => InspectorController()
-                                  .selectSseConnection(sseConnection),
-                            ),
-                          ),
-                        );
-                      }
-                      final request = item.request!;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Dismissible(
-                          key: ValueKey(request.id),
-                          direction: DismissDirection.endToStart,
-                          background: _deleteBackground(),
-                          onDismissed: (_) =>
-                              InspectorController().removeRequest(request),
-                          child: RequestItemWidget(
-                            request: request,
-                            isSelected: selectedRequest == request,
-                            isDarkMode: isDarkMode,
-                            onTap: (itemContext, tappedRequest) {
-                              InspectorController().selectedRequest =
-                                  tappedRequest;
-                            },
-                          ),
-                        ),
+                          );
+                        },
                       );
                     },
                   );
@@ -763,18 +835,26 @@ class __SearchFieldState extends State<_SearchField> {
   }
 }
 
-/// A single row in the merged "All" timeline: either an HTTP [RequestDetails]
-/// or an [SseConnectionLog], sorted together by time (newest first).
+/// A single row in the merged "All" timeline: an HTTP [RequestDetails], an
+/// [SseConnectionLog], or a [FirebaseMessagingEvent], sorted together by
+/// time (newest first).
 class _TimelineItem {
-  const _TimelineItem._({this.request, this.sseConnection, required this.time});
+  const _TimelineItem._({
+    this.request,
+    this.sseConnection,
+    this.firebaseMessagingEvent,
+    required this.time,
+  });
 
   final RequestDetails? request;
   final SseConnectionLog? sseConnection;
+  final FirebaseMessagingEvent? firebaseMessagingEvent;
   final DateTime time;
 
   static List<_TimelineItem> merge(
     List<RequestDetails> requests,
     List<SseConnectionLog> sseConnections,
+    List<FirebaseMessagingEvent> firebaseMessagingEvents,
   ) {
     final items = <_TimelineItem>[
       ...requests.map(
@@ -782,6 +862,9 @@ class _TimelineItem {
       ),
       ...sseConnections.map(
         (c) => _TimelineItem._(sseConnection: c, time: c.startedAt),
+      ),
+      ...firebaseMessagingEvents.map(
+        (e) => _TimelineItem._(firebaseMessagingEvent: e, time: e.receivedAt),
       ),
     ];
     items.sort((a, b) => b.time.compareTo(a.time));

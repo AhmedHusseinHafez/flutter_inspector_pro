@@ -107,7 +107,8 @@ class _SearchWidgetState extends State<SearchWidget> {
                         ),
                         prefixIcon: Icon(
                           Icons.search_rounded,
-                          color: _isFocused ? InspectorTheme.primary : iconColor,
+                          color:
+                              _isFocused ? InspectorTheme.primary : iconColor,
                         ),
                         suffixIcon: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -119,12 +120,12 @@ class _SearchWidgetState extends State<SearchWidget> {
                                 final total = controller.totalMatches;
                                 final query = controller.searchQuery;
 
-                                if (query.isEmpty) return const SizedBox.shrink();
+                                if (query.isEmpty)
+                                  return const SizedBox.shrink();
 
                                 if (total <= 0) {
                                   return Padding(
-                                    padding:
-                                        const EdgeInsets.only(right: 4.0),
+                                    padding: const EdgeInsets.only(right: 4.0),
                                     child: Text(
                                       'No matches',
                                       style: TextStyle(

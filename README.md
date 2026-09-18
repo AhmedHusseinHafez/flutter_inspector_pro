@@ -20,6 +20,7 @@ An in-app network inspector for Flutter apps. Long-press anywhere on screen and 
   - [Server-Sent Events / streaming logs](#5-server-sent-events--streaming-logs)
   - [Stopper — intercept requests & responses](#6-stopper--intercept-requests--responses)
   - [Image network logging (automatic)](#7-image-network-logging-automatic)
+  - [Firebase Messaging Inspector (opt-in)](#8-firebase-messaging-inspector-opt-in)
 - [Filtering & search](#filtering--search)
 - [Sharing & exporting requests](#sharing--exporting-requests)
 - [Credits & Relationship to the Upstream Project](#-credits--relationship-to-the-upstream-project)
@@ -41,7 +42,8 @@ It's aimed at day-to-day development and QA: reproducing a bug on a real device/
 - **`RequestsInspector`** — the widget you wrap your app in. It creates the `InspectorController`, listens for the long-press gesture, and pushes the `Inspector` screen (a `Scaffold` with an "All" timeline tab and a "Details" tab) on top of your navigator when triggered.
 - **Per-transport loggers, all opt-in** — instead of one global hook that intercepts everything (which would be fragile and easy to double-count), each supported transport has its own small wrapper you explicitly add: `RequestsInspectorInterceptor` (Dio), `HttpInspectorClient` (`package:http`), `GraphQLInspectorLink` (GraphQL), and `SseLogController.log(...)` (SSE/streaming, called manually since there's no single standard SSE client in the Flutter ecosystem). Anything not covered by one of these can still be logged by calling `InspectorController().addNewRequest(...)` directly.
 - **The one exception: image logging is automatic, not opt-in** — `RequestsInspectorHttpOverrides` installs a global `dart:io` `HttpOverrides` (the same mechanism Flutter DevTools' network view uses) that observes every `HttpClient` request in the app, including the one `Image.network`/`NetworkImage` uses internally. It only reads response *headers* (never the body stream) and only records entries whose `Content-Type` starts with `image/`, into a separate `ImageLogController` — so it can't slow down image loading and never mixes into, or double-counts against, the opt-in loggers above. See [Image network logging](#7-image-network-logging-automatic).
-- **Presentation** — the inspector screen itself doesn't know or care which transport a given entry came from; it renders whatever `RequestDetails` objects are in the controller's list (plus SSE connections from `SseLogController`, merged into the same timeline and distinguished by a small colored badge). Image loads are the one category kept out of that merged timeline on purpose, in their own "Images" tab, since image traffic tends to be high-volume and would just be noise in "All".
+- **Presentation** — the inspector screen itself doesn't know or care which transport a given entry came from; it renders whatever `RequestDetails` objects are in the controller's list (plus SSE connections from `SseLogController` and Firebase Messaging events from `FirebaseMessagingLogController`, both merged into the same timeline and distinguished by a small colored badge). Image loads are the one category kept out of that merged timeline on purpose, in their own "Images" tab, since image traffic tends to be high-volume and would just be noise in "All".
+- **Firebase Messaging is opt-in and fully decoupled** — `FirebaseMessagingInspector` auto-attaches to `FirebaseMessaging.instance`'s streams only when you pass `firebaseMessaging: FirebaseMessagingInspectorConfig(enabled: true)` to `RequestsInspector`. Unlike the per-transport loggers above, no wrapper object is needed in your own code for foreground events - see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in) for what that means for background messages specifically.
 
 ## Features
 
@@ -50,6 +52,7 @@ It's aimed at day-to-day development and QA: reproducing a bug on a real device/
 - **GraphQL over `graphql`/`graphql_flutter`** — `GraphQLInspectorLink`, covering HTTP queries/mutations and WebSocket subscriptions, with variables shown separately from the query document. *(from upstream)*
 - **Server-Sent Events / streaming logs** — `SseLogController`, a lightweight global log sink that groups raw log lines into per-connection timelines (grouped whenever a line contains a `CONNECTING -> <url>` marker), merged into the same "All" timeline as HTTP/GraphQL traffic. *(added in this fork)*
 - **Automatic network image logging** — every `Image.network`/`NetworkImage` load (and any other image fetched over `dart:io`'s `HttpClient`) is logged to its own "Images" tab automatically, with zero code changes, via a global `HttpOverrides` — the same mechanism Flutter DevTools' network view uses. *(added in this fork)*
+- **Firebase Messaging Inspector (opt-in)** — automatically captures `FirebaseMessaging.onMessage`, `onMessageOpenedApp`, and `getInitialMessage()` with no listener code required, plus a helper for logging `onBackgroundMessage`. Shows message ID, sender ID, `from`, sent time, TTL, collapse key, message type, data payload, and Android/APNs notification details, merged into the same "All" timeline. Off by default; data payload keys that look sensitive are redacted automatically. *(added in this fork; see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in))*
 - **Manual logging** — push a `RequestDetails` into `InspectorController` for any transport not covered above (this is also how the `QUERY` pseudo-method is logged in the example app).
 - **`RequestMethod.QUERY`** — an extra pseudo-method for read-only requests that carry a body (distinct from `GET`), alongside `GET`/`POST`/`PUT`/`PATCH`/`DELETE` and the internally-used `WS`. *(added in this fork)*
 - **Stopper** — pause an outgoing request or an incoming response and edit it before it continues, useful for forcing error codes or malformed payloads without touching a backend. *(from upstream; see the [Stopper section](#6-stopper--intercept-requests--responses) below for how it's actually enabled in the current version — it's programmatic, not a UI toggle right now)*
@@ -102,6 +105,7 @@ Open the inspector by **long-pressing** any free space on screen.
 | `defaultExpandChildren` | `true` | Whether JSON tree nodes start expanded. |
 | `defaultIsDarkMode` | `true` | Initial inspector theme. |
 | `onInspectorOpened` / `onInspectorClosed` | — | Callbacks fired when the inspector screen opens/closes. |
+| `firebaseMessaging` | `FirebaseMessagingInspectorConfig()` (disabled) | Opt-in Firebase Messaging capture — see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in). |
 
 `ShowInspectorOn.Shaking` and `ShowInspectorOn.Both` still exist as enum values for source compatibility with older code, but behave exactly like `ShowInspectorOn.LongPress` now — shake-to-open (and its `sensors_plus` dependency) was removed in this fork; long-press is the only trigger.
 
@@ -216,20 +220,77 @@ Clear the log from the "Images" tab's "Clear All" action, or programmatically wi
 
 For a full technical walkthrough of exactly how this hooks into `dart:io` without touching the response body or double-counting other traffic, see [IMAGE_LOGGING.md](IMAGE_LOGGING.md).
 
+### 8. Firebase Messaging Inspector (opt-in)
+
+This package doesn't depend on Firebase for its core functionality, but `firebase_messaging` **is** a direct dependency of the package (so this feature is fully type-safe) - it just does nothing unless you enable it. If your app already uses `firebase_messaging`, you can inspect FCM traffic with one extra parameter and no listener code:
+
+```dart
+RequestsInspector(
+  navigatorKey: navigatorKey,
+  firebaseMessaging: const FirebaseMessagingInspectorConfig(enabled: true),
+  child: child,
+)
+```
+
+Firebase must already be initialized (`await Firebase.initializeApp()`) by the time `RequestsInspector` builds - it's meant to run after your app's own Firebase setup, same as any other Firebase-dependent code. If it isn't ready yet, the inspector just skips attaching instead of throwing.
+
+With this enabled, the inspector automatically logs, with no `FirebaseMessaging.onMessage.listen(...)` code of your own:
+
+- **`FirebaseMessaging.onMessage`** — foreground messages.
+- **`FirebaseMessaging.onMessageOpenedApp`** — messages that launched/resumed the app via a notification tap.
+- **`getInitialMessage()`** — the message that cold-started the app, if any.
+
+For each event it records: message ID, sender ID, `from`, sent time, TTL, collapse key, message type, the data payload, and (when present) the notification's title/body plus Android (`channelId`, `imageUrl`, `priority`, …) and Apple/APNs (`badge`, `subtitle`) details. These show up in the same "All" timeline as HTTP/GraphQL/SSE traffic, tagged `Firebase Messaging`, filterable via the item-type filter, with their own detail page and Slack share support.
+
+**Data payload masking.** FCM `data` payloads are a common place for apps to smuggle short-lived secrets (auth tokens, one-time codes). By default, any data key whose name contains `token`, `password`, `secret`, `authorization`, `api_key`, `apikey`, `access_token`, or `refresh_token` (case-insensitive) has its value replaced with `***` before it's logged. Customize or disable this via `maskedDataKeys`:
+
+```dart
+FirebaseMessagingInspectorConfig(
+  enabled: true,
+  maskedDataKeys: {'token', 'otp'}, // replace the defaults entirely
+  // maskedDataKeys: {},            // or disable masking altogether
+)
+```
+
+**Background messages - a platform limitation, not a package gap.** `FirebaseMessaging.onBackgroundMessage(handler)` requires `handler` to be a top-level or `static` function, because the OS spawns it in a **separate background isolate** that does not share memory with your running app - that's a Flutter/Firebase isolate constraint, not something this package can work around. Two consequences:
+
+1. This package **never calls `FirebaseMessaging.onBackgroundMessage()`** itself, and never will - your app registers its own handler, and this package won't touch or replace it.
+2. To still get a structured log entry for background messages, call `FirebaseMessagingInspector.logBackgroundMessage(message)` as the first line of your **own** handler:
+
+    ```dart
+    @pragma('vm:entry-point')
+    Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+      await FirebaseMessagingInspector.logBackgroundMessage(message);
+      // ...the rest of your existing handler logic, unchanged.
+    }
+
+    void main() async {
+      WidgetsFlutterBinding.ensureInitialized();
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      runApp(const MyApp());
+    }
+    ```
+
+    Because that handler runs in a separate isolate, the entry logged there lives in *that* isolate's memory - **it will not appear in the Inspector UI of your already-running app session.** This is a genuine platform limitation (the same reason background handlers can't touch most of your app's in-memory state), not a bug; it's documented here rather than silently worked around. Foreground events (`onMessage`, `onMessageOpenedApp`, and the initial message on cold start) are unaffected and always show up live.
+
+**Coexisting with your own listeners.** `FirebaseMessaging.onMessage`/`onMessageOpenedApp` are broadcast streams, so this package's internal `.listen(...)` calls run alongside any listeners your own app already has - neither one steals events from the other. Calling `FirebaseMessagingInspector.attach(...)` (which `RequestsInspector` does for you) more than once is also safe; only the first call actually registers listeners.
+
 ---
 
 ## Filtering & search
 
-- Filter the "All" timeline by HTTP method, status code, and item type (`all` / `http` / `sse`), from the filter dialog reachable via the filter icon next to the search bar.
-- Free-text URL search across the timeline.
+- Filter the "All" timeline by HTTP method, status code, and item type (`all` / `http` / `sse` / `firebaseMessaging`), from the filter dialog reachable via the filter icon next to the search bar.
+- Free-text URL search across the timeline (HTTP requests only).
 - In a request's detail page, search its content with match count and next/previous navigation.
 
 ## Sharing & exporting requests
 
-The floating share button (Slack-branded icon) appears on the detail page of any selected item — an HTTP request or an SSE connection — and shares it immediately, with no format picker in the way. The content is built to be pasted straight into a Slack thread and read by another engineer without extra tooling:
+The floating share button (Slack-branded icon) appears on the detail page of any selected item — an HTTP request, an SSE connection, or a Firebase Messaging event — and shares it immediately, with no format picker in the way. The content is built to be pasted straight into a Slack thread and read by another engineer without extra tooling:
 
 - **HTTP requests** — a ready-to-run `cURL` command, followed by the full request/response log (headers, query params, body, status code, timing).
 - **SSE connections** — the connection URL, start time, and status, followed by the full chronological event log.
+- **Firebase Messaging events** — the event type, metadata (message ID, sender ID, TTL, etc.), notification title/body, and data payload (already masked per your `maskedDataKeys` config).
 
 The share button's icon is Slack's logo, signaling "send this to your team" — but under the hood it still opens the platform's native share sheet (via `share_plus`), so the actual destination app is whatever the user picks there, same as sharing anything else on iOS/Android. It isn't a built-in Slack webhook integration.
 
