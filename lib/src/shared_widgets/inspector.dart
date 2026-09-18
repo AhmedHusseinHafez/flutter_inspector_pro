@@ -105,6 +105,7 @@ class Inspector extends StatelessWidget {
                 onYes: () {
                   InspectorController().clearAllRequests();
                   SseLogController.clear();
+                  ImageLogController.clear();
                 },
               ),
               child: Text(

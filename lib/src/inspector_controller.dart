@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:requests_inspector/src/stopper_filter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../requests_inspector.dart';
@@ -109,29 +108,6 @@ class InspectorController extends ChangeNotifier {
   ItemTypeFilter _filterItemType = ItemTypeFilter.all;
 
   // ------------------------------
-
-  // Stoppers Filter State
-  /// TODO: Would be better if we used the [RequestStopperFilter] and [ResponseStopperFilter] classes instead of these separate fields.
-  RequestMethod? _requestStopperFilterMethod;
-  String? _requestStopperFilterUrl;
-  int? _responseStopperFilterStatusCode;
-  String? _responseStopperFilterUrl;
-  // ------------------------------
-
-  RequestMethod? get requestStopperFilterMethod => _requestStopperFilterMethod;
-  String? get requestStopperFilterUrl => _requestStopperFilterUrl;
-  int? get responseStopperFilterStatusCode => _responseStopperFilterStatusCode;
-  String? get responseStopperFilterUrl => _responseStopperFilterUrl;
-
-  bool get hasRequestStopperFilters =>
-      _requestStopperFilterMethod != null ||
-      (_requestStopperFilterUrl != null &&
-          _requestStopperFilterUrl!.trim().isNotEmpty);
-
-  bool get hasResponseStopperFilters =>
-      _responseStopperFilterStatusCode != null ||
-      (_responseStopperFilterUrl != null &&
-          _responseStopperFilterUrl!.trim().isNotEmpty);
 
   int get selectedTab => _selectedTab;
 
@@ -286,65 +262,9 @@ class InspectorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setRequestStopperFilterMethod(RequestMethod? method) {
-    if (_requestStopperFilterMethod == method) return;
-    _requestStopperFilterMethod = method;
-    notifyListeners();
-  }
+  bool shouldStopRequest(RequestDetails requestDetails) => true;
 
-  void setRequestStopperFilterUrl(String? url) {
-    url = url?.trim();
-    if (url != null && url.isEmpty) {
-      url = null;
-    }
-    if (_requestStopperFilterUrl == url) return;
-    _requestStopperFilterUrl = url;
-    notifyListeners();
-  }
-
-  void setResponseStopperFilterStatusCode(int? statusCode) {
-    if (_responseStopperFilterStatusCode == statusCode) return;
-    _responseStopperFilterStatusCode = statusCode;
-    notifyListeners();
-  }
-
-  void setResponseStopperFilterUrl(String? url) {
-    url = url?.trim();
-    if (url != null && url.isEmpty) {
-      url = null;
-    }
-    if (_responseStopperFilterUrl == url) return;
-    _responseStopperFilterUrl = url;
-    notifyListeners();
-  }
-
-  void clearRequestStopperFilters() {
-    _requestStopperFilterMethod = null;
-    _requestStopperFilterUrl = null;
-    notifyListeners();
-  }
-
-  void clearResponseStopperFilters() {
-    _responseStopperFilterStatusCode = null;
-    _responseStopperFilterUrl = null;
-    notifyListeners();
-  }
-
-  bool shouldStopRequest(RequestDetails requestDetails) {
-    final filter = RequestStopperFilter(
-      requestMethod: _requestStopperFilterMethod,
-      urlPattern: _requestStopperFilterUrl,
-    );
-    return filter.shouldStop(requestDetails);
-  }
-
-  bool shouldStopResponse(ResponseDetails responseDetails) {
-    final filter = ResponseStopperFilter(
-      statusCode: _responseStopperFilterStatusCode,
-      urlPattern: _responseStopperFilterUrl,
-    );
-    return filter.shouldStop(responseDetails);
-  }
+  bool shouldStopResponse(ResponseDetails responseDetails) => true;
 
   bool get isInspectorOpen => _isInspectorOpen;
 

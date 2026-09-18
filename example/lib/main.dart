@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:graphql/client.dart';
 import 'package:http/http.dart' as http;
 import 'package:requests_inspector/requests_inspector.dart';
 
@@ -45,7 +43,6 @@ class _MyAppState extends State<MyApp> {
         }),
       );
       /*for restful apis Interceptor example use => fetchPostsUsingInterceptor() */
-      // fetchPostsGraphQlUsingGraphQLFlutterInterceptor() /*for graph ql Interceptor example */;
       fetchPostsUsingHttpClient();
       _demoQueryMethod();
       _demoSseLogs();
@@ -123,33 +120,6 @@ class _MyAppState extends State<MyApp> {
 }
 
 // Fetching methods
-Future<List<Post>> fetchPosts() async {
-  final dio = Dio(BaseOptions(validateStatus: (_) => true));
-  final params = {'userId': 1};
-  final response = await dio.get(
-    'https://jsonplaceholder.typicode.com/posts',
-    queryParameters: params,
-  );
-
-  final postsMap = response.data as List;
-  final posts = postsMap.map((postMap) => Post.fromMap(postMap)).toList();
-
-  InspectorController().addNewRequest(
-    RequestDetails(
-      requestName: 'Posts',
-      // Optional
-      requestMethod: RequestMethod.GET,
-      url: 'https://jsonplaceholder.typicode.com/posts',
-      queryParameters: params,
-      statusCode: response.statusCode ?? 0,
-      responseBody: response.data,
-      headers: {'language': 'en'},
-    ),
-  );
-
-  return posts;
-}
-
 /// Demoes the new `QUERY` method (a read-only request that carries a body,
 /// unlike GET). Logged manually since dio/http don't have a `.query()` verb.
 void _demoQueryMethod() {
@@ -205,101 +175,6 @@ Future<List<Post>> fetchPostsUsingHttpClient() async {
       .toList();
 
   return posts;
-}
-
-Future<List<Post>> fetchPostsGraphQlUsingGraphQLFlutterInterceptor() async {
-  final client = GraphQLClient(
-    cache: GraphQLCache(),
-    link: GraphQLInspectorLink(HttpLink('https://graphqlzero.almansi.me/api')),
-  );
-  const query = r'''query {
-    post(id: 1) {
-      id
-      title
-      body
-    }
-  }
-''';
-
-  final options = QueryOptions(
-    document: gql(query),
-  );
-  final result = await client.query(options);
-  if (result.hasException) {
-    log(result.exception.toString());
-  } else {
-    log(result.data.toString());
-  }
-  var post = Post.fromMap(result.data?['post']);
-  return [post];
-}
-
-Future<List<Post>>
-    fetchPostsGraphQlWithVariablesUsingGraphQLFlutterInterceptor() async {
-  final client = GraphQLClient(
-    cache: GraphQLCache(),
-    link: GraphQLInspectorLink(HttpLink('https://graphqlzero.almansi.me/api')),
-  );
-  const variables = {'id': 1};
-  const query = r'''query GetPost($id: ID!) {
-    post(id: $id) {
-      id
-      title
-      body
-    }
-  }
-''';
-
-  final options = QueryOptions(
-    document: gql(query),
-    variables: variables,
-  );
-  final result = await client.query(options);
-  if (result.hasException) {
-    log(result.exception.toString());
-  } else {
-    log(result.data.toString());
-  }
-  var post = Post.fromMap(result.data?['post']);
-  return [post];
-}
-
-/// Unnecessary FormData, but added for TESTING
-Future<FormData> _getDummyFormData(final Dio dio) async {
-  final formData = FormData();
-  formData.fields.addAll(List.generate(4, (i) => MapEntry("test[$i]", "$i")));
-  final imageBytes = await _getFlutterImageBytes(dio);
-  if (imageBytes != null) {
-    formData.files.add(
-      MapEntry(
-        'test_image',
-        MultipartFile.fromBytes(
-          imageBytes,
-          filename: "flutter_logo.png",
-          contentType: DioMediaType('image', 'png'),
-        ),
-      ),
-    );
-  }
-  formData.files.add(
-    MapEntry(
-      'test_file',
-      MultipartFile.fromString('test', filename: "test.txt"),
-    ),
-  );
-  return formData;
-}
-
-/// Gets Flutter logo image in bytes from the server
-Future<List<int>?> _getFlutterImageBytes(final Dio dio) async {
-  const imageUrl =
-      "https://storage.googleapis.com/cms-storage-bucket/0dbfcc7a59cd1cf16282.png";
-  final imgResp = await dio.get<List<int>>(
-    imageUrl,
-    options: Options(responseType: ResponseType.bytes),
-  );
-
-  return imgResp.data;
 }
 
 // Post model
