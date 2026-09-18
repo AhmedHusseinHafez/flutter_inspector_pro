@@ -301,52 +301,57 @@ class RequestDetailsPage extends StatelessWidget {
             ),
           ],
         ),
-        child: Theme(
-          data: theme.copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            key: initiallyExpanded ? ValueKey('${title}_expanded') : null,
-            initiallyExpanded: initiallyExpanded,
-            tilePadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 10,
-            ),
-            childrenPadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 8,
-            ),
-            expandedAlignment: Alignment.topLeft,
-            title: Row(
-              children: [
-                Expanded(
-                  child: titleWidget ??
-                      Text(
-                        title ?? '',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+        child: Material(
+          type: MaterialType.transparency,
+          borderRadius: BorderRadius.circular(12),
+          clipBehavior: Clip.antiAlias,
+          child: Theme(
+            data: theme.copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: initiallyExpanded ? ValueKey('${title}_expanded') : null,
+              initiallyExpanded: initiallyExpanded,
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              childrenPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 8,
+              ),
+              expandedAlignment: Alignment.topLeft,
+              title: Row(
+                children: [
+                  Expanded(
+                    child: titleWidget ??
+                        Text(
+                          title ?? '',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                ),
-                InkWell(
-                  child: const Icon(Icons.copy, color: Colors.grey, size: 20),
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: txtCopy));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Copied to clipboard')),
-                    );
-                  },
+                  ),
+                  InkWell(
+                    child: const Icon(Icons.copy, color: Colors.grey, size: 20),
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: txtCopy));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Copied to clipboard')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              children: [
+                Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: children,
+                  ),
                 ),
               ],
             ),
-            children: [
-              Container(
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: children,
-                ),
-              ),
-            ],
           ),
         ),
       ),
