@@ -1,6 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../enums/firebase_messaging_event_type_enum.dart';
+import '../helpers/fcm_data_parser.dart';
 import '../json_pretty_converter.dart';
 import 'firebase_messaging_inspector_config.dart';
 
@@ -62,8 +63,9 @@ class FirebaseMessagingEvent {
   String get displayTitle => notificationTitle ?? messageId ?? type.label;
 
   String? _dataPretty;
-  String get dataPretty =>
-      _dataPretty ??= data != null ? JsonPrettyConverter().convert(data) : '';
+  String get dataPretty => _dataPretty ??= data != null
+      ? JsonPrettyConverter().convert(FcmDataParser.normalize(data!))
+      : '';
 
   String? _androidPretty;
   String get androidPretty => _androidPretty ??=
