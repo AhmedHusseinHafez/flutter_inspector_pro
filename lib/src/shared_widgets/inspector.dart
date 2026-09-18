@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/filters_dialog.dart';
+import 'package:requests_inspector/src/shared_widgets/empty_state.dart';
 import 'package:requests_inspector/src/shared_widgets/image_log_item.dart';
 import 'package:requests_inspector/src/shared_widgets/inspector_theme.dart';
 import 'package:requests_inspector/src/shared_widgets/request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/request_item.dart';
-import 'package:requests_inspector/src/shared_widgets/run_again_widget.dart';
 import 'package:requests_inspector/src/shared_widgets/slack_icon.dart';
 import 'package:requests_inspector/src/shared_widgets/sse_connection_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/sse_connection_item.dart';
@@ -96,61 +96,54 @@ class Inspector extends StatelessWidget {
       Selector<InspectorController, int>(
         selector: (_, c) => c.selectedTab,
         builder: (context, selectedTab, _) {
-          if (selectedTab == 0) {
-            return TextButton(
-              onPressed: () => _showAreYouSureDialog(
-                context,
-                isDarkMode: isDarkMode,
-                message: 'This will clear all requests added to the inspector.',
-                onYes: () {
-                  InspectorController().clearAllRequests();
-                  SseLogController.clear();
-                  ImageLogController.clear();
-                },
-              ),
-              child: Text(
-                'Clear All',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
-              ),
-            );
-          }
+          // Images tab only has image logs to clear; every other tab clears
+          // the full inspector state so "Clear All" behaves consistently
+          // wherever it's shown.
+          final clearAllButton = selectedTab == 2
+              ? _buildClearAllButton(
+                  context,
+                  isDarkMode: isDarkMode,
+                  message: 'This will clear all logged image requests.',
+                  onYes: ImageLogController.clear,
+                )
+              : _buildClearAllButton(
+                  context,
+                  isDarkMode: isDarkMode,
+                  message:
+                      'This will clear all requests added to the inspector.',
+                  onYes: () {
+                    InspectorController().clearAllRequests();
+                    SseLogController.clear();
+                    ImageLogController.clear();
+                  },
+                );
 
-          if (selectedTab == 2) {
-            return TextButton(
-              onPressed: () => _showAreYouSureDialog(
-                context,
-                isDarkMode: isDarkMode,
-                message: 'This will clear all logged image requests.',
-                onYes: ImageLogController.clear,
-              ),
-              child: Text(
-                'Clear All',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
-              ),
-            );
-          }
-
-          // Run-again only makes sense for an HTTP request, not for a
-          // selected SSE connection. Search moved to a floating action
-          // button (see _buildFloatingActionButtons).
-          return Selector<InspectorController, RequestDetails?>(
-            selector: (_, c) => c.selectedRequest,
-            builder: (context, selectedRequest, _) {
-              if (selectedRequest == null) return const SizedBox();
-              return RunAgainButton(
-                key: ValueKey(selectedRequest.hashCode),
-                onTap: InspectorController().runAgain,
-                isDarkMode: isDarkMode,
-              );
-            },
-          );
+          // Run Again now lives inline on the details page itself, next to
+          // the request's method/status chips.
+          return clearAllButton;
         },
       ),
     ];
+  }
+
+  Widget _buildClearAllButton(
+    BuildContext context, {
+    required bool isDarkMode,
+    required String message,
+    required VoidCallback onYes,
+  }) {
+    return TextButton(
+      onPressed: () => _showAreYouSureDialog(
+        context,
+        isDarkMode: isDarkMode,
+        message: message,
+        onYes: onYes,
+      ),
+      child: Text(
+        'Clear All',
+        style: TextStyle(color: isDarkMode ? Colors.white : Colors.black87),
+      ),
+    );
   }
 
   Widget _buildBody({required bool isDarkMode}) {
@@ -256,8 +249,12 @@ class Inspector extends StatelessWidget {
         valueListenable: ImageLogController.images,
         builder: (context, images, _) {
           if (images.isEmpty) {
-            return const Center(
-              child: Text('No image requests logged yet'),
+            return EmptyState(
+              icon: Icons.image_outlined,
+              title: 'No image requests yet',
+              message:
+                  'Images fetched by your app will show up here as they\'re loaded.',
+              isDarkMode: isDarkMode,
             );
           }
           return ListView.separated(
@@ -289,9 +286,12 @@ class Inspector extends StatelessWidget {
                 isDarkMode: isDarkMode,
               );
             }
-            return const Expanded(
-              child: Center(
-                child: Text('Please select a request first to view details'),
+            return Expanded(
+              child: EmptyState(
+                icon: Icons.touch_app_outlined,
+                title: 'Nothing selected',
+                message: 'Select an item to view its details here.',
+                isDarkMode: isDarkMode,
               ),
             );
           },
@@ -435,14 +435,29 @@ class Inspector extends StatelessWidget {
           builder: (context, isSearchVisible, _) => FloatingActionButton(
             heroTag: 'inspector_search_fab',
             mini: true,
-            backgroundColor: InspectorTheme.surface(isDarkMode),
-            foregroundColor: isSearchVisible
+            backgroundColor: isSearchVisible
                 ? InspectorTheme.primary
+                : InspectorTheme.surface(isDarkMode),
+            foregroundColor: isSearchVisible
+                ? Colors.white
                 : (isDarkMode ? Colors.white70 : Colors.black87),
-            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16.0),
+              side: isSearchVisible
+                  ? BorderSide.none
+                  : BorderSide(color: InspectorTheme.border(isDarkMode)),
+            ),
+            elevation: isSearchVisible ? 4 : 2,
             tooltip: isSearchVisible ? 'Close search' : 'Search',
             onPressed: InspectorController().toggleSearchVisibility,
-            child: Icon(isSearchVisible ? Icons.close : Icons.search),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 150),
+              child: Icon(
+                isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
+                key: ValueKey(isSearchVisible),
+                size: 22.0,
+              ),
+            ),
           ),
         );
       },
@@ -491,12 +506,19 @@ class Inspector extends StatelessWidget {
               final items = _TimelineItem.merge(requests, sseConnections);
 
               if (items.isEmpty) {
-                return Center(
-                  child: Text(
-                    InspectorController().areAnyFiltersApplied
-                        ? 'No requests can be found with applied filters'
-                        : 'No requests added yet',
-                  ),
+                final filtersApplied =
+                    InspectorController().areAnyFiltersApplied;
+                return EmptyState(
+                  icon: filtersApplied
+                      ? Icons.filter_alt_off_outlined
+                      : Icons.inbox_outlined,
+                  title: filtersApplied
+                      ? 'No matching requests'
+                      : 'No requests yet',
+                  message: filtersApplied
+                      ? 'Try adjusting or clearing your filters to see more results.'
+                      : 'Requests made by your app will appear here as they happen.',
+                  isDarkMode: isDarkMode,
                 );
               }
 

@@ -9,6 +9,7 @@ import '../helpers/inspector_helper.dart';
 import '../helpers/search_helper.dart';
 import '../json_tree_view_widget.dart';
 import 'highlighted_text.dart';
+import 'run_again_widget.dart';
 import 'search_widget.dart';
 import 'status_method_chip.dart';
 
@@ -169,6 +170,7 @@ class RequestDetailsPage extends StatelessWidget {
                     method: request.requestMethod,
                     requestName: request.requestName,
                     statusCode: request.statusCode,
+                    isDarkMode: state.isDarkMode,
                   ),
                   children: [
                     _buildRequestSentTimeAndDuration(
@@ -472,6 +474,7 @@ class RequestDetailsPage extends StatelessWidget {
     required RequestMethod method,
     required String requestName,
     required int? statusCode,
+    required bool isDarkMode,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -481,6 +484,12 @@ class RequestDetailsPage extends StatelessWidget {
             MethodChip(method: method),
             const SizedBox(width: 6.0),
             StatusChip(statusCode: statusCode),
+            SizedBox(width: 6.0),
+            RunAgainButton(
+              key: ValueKey(requestName.hashCode ^ statusCode.hashCode),
+              onTap: InspectorController().runAgain,
+              isDarkMode: isDarkMode,
+            ),
           ],
         ),
         const SizedBox(height: 6.0),

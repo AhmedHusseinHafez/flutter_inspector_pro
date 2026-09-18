@@ -54,17 +54,20 @@ class _RunAgainButtonState extends State<RunAgainButton> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Run',
+                      'Run again',
                       style: TextStyle(
                         color: InspectorTheme.primary,
                         fontWeight: FontWeight.w600,
                         fontSize: 13.0,
                       ),
                     ),
-                    Icon(
-                      Icons.play_arrow_rounded,
-                      color: InspectorTheme.primary,
-                      size: 18.0,
+                    Padding(
+                      padding: EdgeInsets.only(left: 4.0),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: InspectorTheme.primary,
+                        size: 18.0,
+                      ),
                     ),
                   ],
                 ),
