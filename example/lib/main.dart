@@ -63,6 +63,11 @@ class _MyAppState extends State<MyApp> {
         return RequestsInspector(
           enabled: true,
           navigatorKey: navigatorKey,
+          // Offers the "Save logs to disk?" prompt the first time the
+          // inspector is opened. Pass `defaultTypes` here instead to start
+          // saving from app startup without asking, e.g.
+          // `defaultTypes: {PersistedLogType.http}`.
+          logPersistence: const LogPersistenceConfig(),
           child: child!,
         );
       },

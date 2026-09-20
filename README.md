@@ -21,6 +21,7 @@ An in-app network inspector for Flutter apps. Long-press anywhere on screen and 
   - [Stopper — intercept requests & responses](#6-stopper--intercept-requests--responses)
   - [File network logging (automatic)](#7-file-network-logging-automatic)
   - [Firebase Messaging Inspector (opt-in)](#8-firebase-messaging-inspector-opt-in)
+  - [Saving logs to disk & exporting them](#9-saving-logs-to-disk--exporting-them)
 - [Filtering & search](#filtering--search)
 - [Sharing & exporting requests](#sharing--exporting-requests)
 - [Credits & Relationship to the Upstream Project](#-credits--relationship-to-the-upstream-project)
@@ -52,7 +53,8 @@ It's aimed at day-to-day development and QA: reproducing a bug on a real device/
 - **GraphQL over `graphql`/`graphql_flutter`** — `GraphQLInspectorLink`, covering HTTP queries/mutations and WebSocket subscriptions, with variables shown separately from the query document. *(from upstream)*
 - **Server-Sent Events / streaming logs** — `SseLogController`, a lightweight global log sink that groups raw log lines into per-connection timelines (grouped whenever a line contains a `CONNECTING -> <url>` marker), merged into the same "All" timeline as HTTP/GraphQL traffic. *(added in this fork)*
 - **Automatic network file logging** — every `Image.network`/`NetworkImage` load and any other non-API file (video, audio, PDF, font, archive, download, ...) fetched over `dart:io`'s `HttpClient` is logged to its own "Files" tab automatically, with zero code changes, via a global `HttpOverrides` — the same mechanism Flutter DevTools' network view uses. *(added in this fork)*
-- **Firebase Messaging Inspector (opt-in)** — automatically captures `FirebaseMessaging.onMessage`, `onMessageOpenedApp`, and `getInitialMessage()` with no listener code required, plus a helper for logging `onBackgroundMessage`. Shows message ID, sender ID, `from`, sent time, TTL, collapse key, message type, data payload, and Android/APNs notification details, merged into the same "All" timeline. Off by default; data payload keys that look sensitive are redacted automatically. *(added in this fork; see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in))*
+- **Firebase Messaging Inspector (opt-in)** — automatically captures `FirebaseMessaging.onMessage` and `onMessageOpenedApp` with no listener code required, plus a helper for logging `onBackgroundMessage`. Shows message ID, sender ID, `from`, sent time, TTL, collapse key, message type, data payload, and Android/APNs notification details, merged into the same "All" timeline. Off by default; data payload keys that look sensitive are redacted automatically. *(added in this fork; see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in))*
+- **Saving logs to disk, per category** — keep HTTP/GraphQL, SSE, Firebase Messaging and file logs on the device so they survive app restarts, choosing which of those four categories to save from a switch in the inspector (or a one-time prompt on first open), then export everything as a single CSV (or JSON) file and share it by email or anywhere else. Nothing is written until a category is switched on. *(added in this fork; see [Saving logs to disk](#9-saving-logs-to-disk--exporting-them))*
 - **Manual logging** — push a `RequestDetails` into `InspectorController` for any transport not covered above (this is also how the `QUERY` pseudo-method is logged in the example app).
 - **`RequestMethod.QUERY`** — an extra pseudo-method for read-only requests that carry a body (distinct from `GET`), alongside `GET`/`POST`/`PUT`/`PATCH`/`DELETE` and the internally-used `WS`. *(added in this fork)*
 - **Stopper** — pause an outgoing request or an incoming response and edit it before it continues, useful for forcing error codes or malformed payloads without touching a backend. *(from upstream; see the [Stopper section](#6-stopper--intercept-requests--responses) below for how it's actually enabled in the current version — it's programmatic, not a UI toggle right now)*
@@ -106,6 +108,7 @@ Open the inspector by **long-pressing** any free space on screen.
 | `defaultIsDarkMode` | `true` | Initial inspector theme. |
 | `onInspectorOpened` / `onInspectorClosed` | — | Callbacks fired when the inspector screen opens/closes. |
 | `firebaseMessaging` | `FirebaseMessagingInspectorConfig()` (disabled) | Opt-in Firebase Messaging capture — see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in). |
+| `logPersistence` | `LogPersistenceConfig()` (offered, saving nothing) | Which log categories get written to disk, whether to ask on first open, and retention — see [Saving logs to disk](#9-saving-logs-to-disk--exporting-them). |
 
 `ShowInspectorOn.Shaking` and `ShowInspectorOn.Both` still exist as enum values for source compatibility with older code, but behave exactly like `ShowInspectorOn.LongPress` now — shake-to-open (and its `sensors_plus` dependency) was removed in this fork; long-press is the only trigger.
 
@@ -250,7 +253,8 @@ With this enabled, the inspector automatically logs, with no `FirebaseMessaging.
 
 - **`FirebaseMessaging.onMessage`** — foreground messages.
 - **`FirebaseMessaging.onMessageOpenedApp`** — messages that launched/resumed the app via a notification tap.
-- **`getInitialMessage()`** — the message that cold-started the app, if any.
+
+`getInitialMessage()` is intentionally **not** called by the inspector: that call consumes the cold-start message (it resolves the launch intent/notification exactly once), so reading it here would make your own `getInitialMessage()` return `null`. Cold-start messages therefore aren't logged automatically.
 
 For each event it records: message ID, sender ID, `from`, sent time, TTL, collapse key, message type, the data payload, and (when present) the notification's title/body plus Android (`channelId`, `imageUrl`, `priority`, …) and Apple/APNs (`badge`, `subtitle`) details. These show up in the same "All" timeline as HTTP/GraphQL/SSE traffic, tagged `Firebase Messaging`, filterable via the item-type filter, with their own detail page and Slack share support.
 
@@ -284,9 +288,85 @@ FirebaseMessagingInspectorConfig(
     }
     ```
 
-    Because that handler runs in a separate isolate, the entry logged there lives in *that* isolate's memory - **it will not appear in the Inspector UI of your already-running app session.** This is a genuine platform limitation (the same reason background handlers can't touch most of your app's in-memory state), not a bug; it's documented here rather than silently worked around. Foreground events (`onMessage`, `onMessageOpenedApp`, and the initial message on cold start) are unaffected and always show up live.
+    Because that handler runs in a separate isolate, the entry logged there lives in *that* isolate's memory - **it will not appear in the Inspector UI of your already-running app session.** This is a genuine platform limitation (the same reason background handlers can't touch most of your app's in-memory state), not a bug; it's documented here rather than silently worked around. Foreground events (`onMessage`, `onMessageOpenedApp`) are unaffected and always show up live.
 
 **Coexisting with your own listeners.** `FirebaseMessaging.onMessage`/`onMessageOpenedApp` are broadcast streams, so this package's internal `.listen(...)` calls run alongside any listeners your own app already has - neither one steals events from the other. Calling `FirebaseMessagingInspector.attach(...)` (which `RequestsInspector` does for you) more than once is also safe; only the first call actually registers listeners.
+
+### 9. Saving logs to disk & exporting them
+
+Everything above is **in-memory only** — close the app and the timeline is gone. Disk logging keeps the categories you pick in a file on the device, so a bug reproduced yesterday (or during a crash) is still there tomorrow, and can be exported as one lightweight file and sent to whoever needs it.
+
+#### Choosing what gets saved
+
+Two ways, and you can use either or both:
+
+1. **Ask on first open (default).** The first time the inspector screen is opened, a prompt asks which categories to keep. Whatever is picked — including *Not now* — is remembered on disk, so the prompt never comes back.
+2. **The switcher in the UI.** The 💾 button in the inspector's app bar opens **Save logs to disk**, with one switch per category, how much each currently occupies on disk, the export action, and a delete action. The button is tinted green while at least one category is being saved.
+
+To skip the prompt and start saving from app startup instead, pass the categories yourself:
+
+```dart
+RequestsInspector(
+  navigatorKey: navigatorKey,
+  logPersistence: const LogPersistenceConfig(
+    defaultTypes: {
+      PersistedLogType.http,
+      PersistedLogType.firebaseMessaging,
+    },
+  ),
+  child: child!,
+)
+```
+
+Passing `defaultTypes` counts as an explicit choice, so the prompt is skipped. The switches still work afterwards and whatever is set there wins from then on. Note that the prompt path only starts saving from the moment it's answered — with `defaultTypes` the app's very first requests are captured too.
+
+#### `LogPersistenceConfig` parameters
+
+| Parameter | Default | Purpose |
+|---|---|---|
+| `enabled` | `true` | Whether disk logging is offered at all. `false` writes nothing, shows no prompt, and hides the storage button — e.g. to lock the feature off in release builds. |
+| `askOnFirstOpen` | `true` | Whether to show the one-time prompt on first inspector open. |
+| `defaultTypes` | `{}` | Categories saved from startup when no choice has been stored yet. Non-empty also means "don't ask". |
+| `maxEntriesPerType` | `2000` | Retention cap per category; oldest entries are dropped past it, so the files can't grow without bound. |
+| `includeBodies` | `true` | Whether headers, query params and request/response bodies are saved alongside the metadata. `false` keeps only URLs, status codes, timings and sizes. |
+| `maxDetailsLength` | `2000` | Per-entry cap on saved body/detail characters; anything longer is truncated with a `…(truncated)` marker. |
+
+#### Exporting & sharing
+
+From the same dialog, pick **CSV** or **JSON** and tap **Export … & share**. The file is written next to the logs and handed to the platform share sheet, so the destination is whatever the device offers — Mail (with the subject line pre-filled), Slack, Drive, Files, AirDrop, and so on.
+
+The CSV is deliberately flat: one row per entry, with every category sharing the same columns so it opens straight in Excel/Numbers/Sheets.
+
+```
+type,timestamp,name,method,url,status_code,duration_ms,size_bytes,error,details
+HTTP,2026-09-19T10:00:00.000,USERS,GET,https://api.example.com/users,200,250,,,"{""responseBody"":{...}}"
+Files,2026-09-19T09:58:11.000,logo.png,GET,https://cdn.example.com/logo.png,200,84,2048,,
+```
+
+Both are also available programmatically, without touching the UI:
+
+```dart
+// Turn categories on/off from your own code:
+await LogPersistenceController.instance
+    .setTypeEnabled(PersistedLogType.sse, true);
+
+// Export to a file, and optionally open the share sheet:
+final result = await LogExporter.export(format: LogExportFormat.csv);
+print('${result?.entryCount} entries at ${result?.file.path}');
+
+await LogExporter.exportAndShare(subject: 'Logs from last night\'s crash');
+
+// Or read the saved entries and do your own thing with them:
+final entries = await LogPersistenceController.instance.readSavedEntries(
+  types: const [PersistedLogType.http],
+);
+```
+
+#### Where it's stored, and a word of caution
+
+Logs live in `<app support dir>/requests_inspector_logs/` (via `path_provider`), one append-only [JSON Lines](https://jsonlines.org) file per category plus a small `settings.json` holding the saved choice. That's inside the app's own sandbox, so it isn't readable by other apps and goes away when the app is uninstalled — but it **is** a plain-text copy of your traffic sitting on the device. Request/response bodies routinely contain tokens and personal data, so gate this the way you'd gate the inspector itself (`enabled: false` in release builds), or drop the payloads with `includeBodies: false` and keep just the metadata.
+
+Web isn't supported (there's no writable app directory): the controller detects it, stays off, and the rest of the inspector keeps working.
 
 ---
 
@@ -305,6 +385,8 @@ The floating share button (Slack-branded icon) appears on the detail page of any
 - **Firebase Messaging events** — the event type, metadata (message ID, sender ID, TTL, etc.), notification title/body, and data payload (already masked per your `maskedDataKeys` config).
 
 The share button's icon is Slack's logo, signaling "send this to your team" — but under the hood it still opens the platform's native share sheet (via `share_plus`), so the actual destination app is whatever the user picks there, same as sharing anything else on iOS/Android. It isn't a built-in Slack webhook integration.
+
+That button shares **one selected item** as text. To send a whole session's worth of traffic instead — as a single CSV/JSON file, by email or anything else — use the disk-log export described in [Saving logs to disk & exporting them](#9-saving-logs-to-disk--exporting-them).
 
 ---
 
@@ -461,6 +543,7 @@ To add yourself as a contributor, simply follow the contribution guidelines and 
 - [x] Inspector open/close callbacks.
 - [x] `RequestMethod.QUERY`.
 - [x] Automatic network file logging (`RequestsInspectorHttpOverrides`, "Files" tab).
+- [x] Persisting logs to disk per category, with CSV/JSON export and share.
 - [ ] Firebase-backed logging/observability integration.
 - [ ] A UI-level toggle for Stopper again (currently programmatic-only — see [Stopper](#6-stopper--intercept-requests--responses)).
 - [ ] Additional HTTP client integrations.

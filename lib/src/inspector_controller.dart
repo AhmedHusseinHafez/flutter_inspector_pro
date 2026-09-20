@@ -333,6 +333,7 @@ class InspectorController extends ChangeNotifier {
 
   void addNewRequest(RequestDetails request) {
     if (!_enabled) return;
+    LogPersistenceController.instance.recordRequest(request);
     _requestsList.insert(0, request);
     _requestsVersion++;
     notifyListeners();

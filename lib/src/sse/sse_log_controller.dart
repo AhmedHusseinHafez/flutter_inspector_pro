@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../persistence/log_persistence_controller.dart';
+
 /// A single grouped SSE connection, derived from the flat [SseLogController.logs]
 /// by grouping every line since the last `CONNECTING -> <url>` marker.
 class SseConnectionLog {
@@ -44,6 +46,7 @@ class SseLogController {
   /// Append a new log line.
   static void log(String message) {
     final timestamp = DateTime.now().toIso8601String().substring(11, 23);
+    LogPersistenceController.instance.recordSseLine(message);
     final updated = [..._logs.value, '[$timestamp] $message'];
     if (updated.length > _maxEntries) {
       updated.removeRange(0, updated.length - _maxEntries);

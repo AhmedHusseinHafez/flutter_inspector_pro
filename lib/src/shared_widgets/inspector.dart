@@ -8,6 +8,7 @@ import 'package:requests_inspector/src/shared_widgets/firebase_messaging_item.da
 import 'package:requests_inspector/src/shared_widgets/file_log_item.dart';
 import 'package:requests_inspector/src/shared_widgets/file_request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/inspector_theme.dart';
+import 'package:requests_inspector/src/shared_widgets/log_storage_dialog.dart';
 import 'package:requests_inspector/src/shared_widgets/request_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/request_item.dart';
 import 'package:requests_inspector/src/shared_widgets/slack_icon.dart';
@@ -96,6 +97,7 @@ class Inspector extends StatelessWidget {
 
   List<Widget> _buildActions(bool isDarkMode) {
     return [
+      _buildStorageButton(isDarkMode),
       Selector<InspectorController, int>(
         selector: (_, c) => c.selectedTab,
         builder: (context, selectedTab, _) {
@@ -128,6 +130,32 @@ class Inspector extends StatelessWidget {
         },
       ),
     ];
+  }
+
+  /// Opens the "Save logs to disk" dialog, where each log category can be
+  /// switched on/off and the saved logs exported & shared. Tinted while at
+  /// least one category is being written, so it's obvious at a glance that
+  /// logging to disk is on.
+  Widget _buildStorageButton(bool isDarkMode) {
+    final persistence = LogPersistenceController.instance;
+    if (!persistence.isFeatureEnabled) return const SizedBox.shrink();
+
+    return ValueListenableBuilder<Set<PersistedLogType>>(
+      valueListenable: persistence.enabledTypes,
+      builder: (context, enabledTypes, _) {
+        final isSaving = enabledTypes.isNotEmpty;
+        return IconButton(
+          tooltip: isSaving
+              ? 'Saving to disk (${enabledTypes.length})'
+              : 'Save logs to disk',
+          icon: Icon(
+            Icons.save_alt_rounded,
+            color: isSaving ? InspectorTheme.primary : null,
+          ),
+          onPressed: () => LogStorageDialog.show(context, isDarkMode: isDarkMode),
+        );
+      },
+    );
   }
 
   Widget _buildClearAllButton(

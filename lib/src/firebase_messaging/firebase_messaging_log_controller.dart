@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../persistence/log_persistence_controller.dart';
 import 'firebase_messaging_event.dart';
 
 /// A lightweight global log of Firebase Messaging events, kept separate from
@@ -21,6 +22,7 @@ class FirebaseMessagingLogController {
   static ValueListenable<List<FirebaseMessagingEvent>> get events => _events;
 
   static void log(FirebaseMessagingEvent event) {
+    LogPersistenceController.instance.recordFirebaseMessagingEvent(event);
     final updated = [event, ..._events.value];
     if (updated.length > _maxEntries) {
       updated.removeRange(_maxEntries, updated.length);

@@ -34,10 +34,17 @@ class FirebaseMessagingInspector {
   static StreamSubscription<RemoteMessage>? _onMessageSubscription;
   static StreamSubscription<RemoteMessage>? _onMessageOpenedAppSubscription;
 
-  /// Attaches `onMessage`/`onMessageOpenedApp` listeners and logs the
-  /// current `getInitialMessage()`, if any. Safe to call more than once
-  /// (e.g. across hot reloads or multiple `RequestsInspector` rebuilds) -
-  /// only the first call with `enabled: true` actually registers listeners.
+  /// Attaches `onMessage`/`onMessageOpenedApp` listeners. Safe to call more
+  /// than once (e.g. across hot reloads or multiple `RequestsInspector`
+  /// rebuilds) - only the first call with `enabled: true` actually registers
+  /// listeners.
+  ///
+  /// Deliberately does NOT call `FirebaseMessaging.getInitialMessage()`: that
+  /// call consumes the cold-start message (it resolves the pending intent /
+  /// launch notification exactly once), so inspecting it here would make the
+  /// app's own `getInitialMessage()` return null. Cold-start messages are
+  /// therefore not logged automatically - log one yourself from your own
+  /// `getInitialMessage()` result if you need it in the timeline.
   ///
   /// If Firebase hasn't been initialized yet, this fails silently (aside
   /// from a debug-mode warning) rather than throwing, so a misordered
@@ -46,7 +53,6 @@ class FirebaseMessagingInspector {
     if (!config.enabled || _attached) return;
 
     try {
-      final messaging = FirebaseMessaging.instance;
       _attached = true;
 
       _onMessageSubscription = FirebaseMessaging.onMessage.listen((message) {
@@ -68,20 +74,6 @@ class FirebaseMessagingInspector {
             maskedDataKeys: config.maskedDataKeys,
           ),
         );
-      });
-
-      messaging.getInitialMessage().then((message) {
-        if (message == null) return;
-        FirebaseMessagingLogController.log(
-          FirebaseMessagingEvent.fromRemoteMessage(
-            message,
-            FirebaseMessagingEventType.initialMessage,
-            maskedDataKeys: config.maskedDataKeys,
-          ),
-        );
-      }).catchError((_) {
-        // Firebase not ready / getInitialMessage unsupported on this
-        // platform - nothing to log, and nothing the app needs to know.
       });
     } catch (e) {
       _attached = false;
@@ -112,8 +104,8 @@ class FirebaseMessagingInspector {
   /// Inspector UI of the already-running app session. This call is still
   /// useful (it's a real, structured log entry, and cheap to leave in
   /// place), but don't expect a background push to show up live; only
-  /// foreground events (`onMessage`, `onMessageOpenedApp`, the initial
-  /// message on cold start) are guaranteed visible in the running UI.
+  /// foreground events (`onMessage`, `onMessageOpenedApp`) are guaranteed
+  /// visible in the running UI.
   static Future<void> logBackgroundMessage(
     RemoteMessage message, {
     FirebaseMessagingInspectorConfig config =

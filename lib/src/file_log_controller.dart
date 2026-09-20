@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'file_request_details.dart';
+import 'persistence/log_persistence_controller.dart';
 
 /// A lightweight global log of network file loads (images, videos, PDFs,
 /// fonts, downloads, ...), separate from [RequestDetails]/[InspectorController]
@@ -21,6 +22,7 @@ class FileLogController {
   static ValueListenable<List<FileRequestDetails>> get files => _files;
 
   static void log(FileRequestDetails details) {
+    LogPersistenceController.instance.recordFileRequest(details);
     final updated = [details, ..._files.value];
     if (updated.length > _maxEntries) {
       updated.removeRange(_maxEntries, updated.length);

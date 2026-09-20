@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/request_stopper_editor_dialog.dart';
 import 'package:requests_inspector/src/response_stopper_editor_dialog.dart';
 import 'package:requests_inspector/src/shared_widgets/inspector.dart';
+import 'package:requests_inspector/src/shared_widgets/log_storage_prompt_dialog.dart';
 import '../requests_inspector.dart';
 
 ///You can show the Inspector by long-pressing the screen.
@@ -23,6 +24,7 @@ class RequestsInspector extends StatefulWidget {
     this.onInspectorClosed,
     FirebaseMessagingInspectorConfig firebaseMessaging =
         const FirebaseMessagingInspectorConfig(),
+    LogPersistenceConfig logPersistence = const LogPersistenceConfig(),
   })  : _enabled = enabled,
         _hideInspectorBanner = hideInspectorBanner,
         _showInspectorOn = showInspectorOn,
@@ -31,7 +33,8 @@ class RequestsInspector extends StatefulWidget {
         _defaultTreeViewEnabled = defaultTreeViewEnabled,
         _defaultExpandChildren = defaultExpandChildren,
         _defaultIsDarkMode = defaultIsDarkMode,
-        _firebaseMessaging = firebaseMessaging;
+        _firebaseMessaging = firebaseMessaging,
+        _logPersistence = logPersistence;
 
   final bool _enabled;
   final bool _hideInspectorBanner;
@@ -43,9 +46,14 @@ class RequestsInspector extends StatefulWidget {
   final GlobalKey<NavigatorState>? _navigatorKey;
 
   /// Opt-in config to auto-capture Firebase Messaging events
-  /// (`onMessage`/`onMessageOpenedApp`/`getInitialMessage()`) into the
-  /// inspector. Disabled by default; see [FirebaseMessagingInspectorConfig].
+  /// (`onMessage`/`onMessageOpenedApp`) into the inspector. Disabled by
+  /// default; see [FirebaseMessagingInspectorConfig].
   final FirebaseMessagingInspectorConfig _firebaseMessaging;
+
+  /// Controls saving logs to disk: which categories are saved by default,
+  /// whether to ask on first open, and how much is kept. Enabled (but saving
+  /// nothing) by default - see [LogPersistenceConfig].
+  final LogPersistenceConfig _logPersistence;
 
   /// Called when the inspector screen is opened (long-press).
   final VoidCallback? onInspectorOpened;
@@ -57,10 +65,17 @@ class RequestsInspector extends StatefulWidget {
   State<RequestsInspector> createState() => _RequestsInspectorState();
 }
 
-class _RequestsInspectorState extends State<RequestsInspector> {
+class _RequestsInspectorState extends State<RequestsInspector>
+    with WidgetsBindingObserver {
+  /// Completes once disk logging has finished initializing.
+  Future<void>? _persistenceReady;
+
   @override
   void initState() {
     super.initState();
+    // Saved logs are buffered and flushed on a timer, so a pause/kill could
+    // otherwise drop the last couple of seconds of traffic.
+    WidgetsBinding.instance.addObserver(this);
     // Automatically observes non-API network file traffic (images, videos,
     // PDFs, fonts, downloads, ...) via dart:io's HttpOverrides, the same
     // mechanism Flutter DevTools' network view uses - no changes required
@@ -72,6 +87,26 @@ class _RequestsInspectorState extends State<RequestsInspector> {
     // throws) if Firebase hasn't been initialized yet.
     if (widget._enabled)
       FirebaseMessagingInspector.attach(widget._firebaseMessaging);
+
+    // Resolves the on-disk log directory and restores which categories the
+    // user chose to save. Kept as a future so the first-open prompt can wait
+    // for it instead of racing it.
+    _persistenceReady = widget._enabled
+        ? LogPersistenceController.instance.init(widget._logPersistence)
+        : Future<void>.value();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) return;
+    LogPersistenceController.instance.flush();
   }
 
   @override
@@ -149,6 +184,28 @@ class _RequestsInspectorState extends State<RequestsInspector> {
       InspectorController().markInspectorClosed();
       widget.onInspectorClosed?.call();
     });
+
+    _maybeAskAboutDiskLogging();
+  }
+
+  /// Shows the one-time "save logs to disk?" prompt on top of the inspector,
+  /// once disk logging has finished initializing (so a slow directory lookup
+  /// doesn't silently skip the prompt).
+  Future<void> _maybeAskAboutDiskLogging() async {
+    final persistence = LogPersistenceController.instance;
+    if (!persistence.isFeatureEnabled) return;
+
+    await _persistenceReady;
+    if (!mounted || !persistence.shouldPromptOnOpen) return;
+    if (!InspectorController().isInspectorOpen) return;
+
+    final dialogContext = widget._navigatorKey?.currentContext;
+    if (dialogContext == null || !dialogContext.mounted) return;
+
+    await LogStoragePromptDialog.showIfNeeded(
+      dialogContext,
+      isDarkMode: InspectorController().isDarkMode,
+    );
   }
 
   Future<RequestDetails?> _showRequestEditorDialog(
