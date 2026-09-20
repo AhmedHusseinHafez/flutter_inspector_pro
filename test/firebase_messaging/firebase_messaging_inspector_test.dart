@@ -86,6 +86,44 @@ void main() {
     });
   });
 
+  group('FirebaseMessagingInspector.logMessage', () {
+    setUp(FirebaseMessagingLogController.clear);
+
+    test('logs an app-supplied message under the given type', () {
+      FirebaseMessagingInspector.logMessage(
+        RemoteMessage(messageId: 'initial-1'),
+        FirebaseMessagingEventType.initialMessage,
+      );
+
+      final event = FirebaseMessagingLogController.events.value.single;
+      expect(event.type, FirebaseMessagingEventType.initialMessage);
+      expect(event.messageId, 'initial-1');
+    });
+
+    test('does nothing when the given config is disabled', () {
+      FirebaseMessagingInspector.logMessage(
+        RemoteMessage(messageId: 'initial-2'),
+        FirebaseMessagingEventType.initialMessage,
+        config: const FirebaseMessagingInspectorConfig(enabled: false),
+      );
+
+      expect(FirebaseMessagingLogController.events.value, isEmpty);
+    });
+
+    test('masks sensitive data keys', () {
+      FirebaseMessagingInspector.logMessage(
+        RemoteMessage(
+          messageId: 'opened-1',
+          data: const {'token': 'secret-value'},
+        ),
+        FirebaseMessagingEventType.onMessageOpenedApp,
+      );
+
+      final event = FirebaseMessagingLogController.events.value.single;
+      expect(event.data!['token'], '***');
+    });
+  });
+
   group('Coexistence with app-registered listeners', () {
     // FirebaseMessaging.onMessage/onMessageOpenedApp are broadcast streams,
     // which is what lets this package's listener and an app's own listener

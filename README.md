@@ -53,7 +53,7 @@ It's aimed at day-to-day development and QA: reproducing a bug on a real device/
 - **GraphQL over `graphql`/`graphql_flutter`** — `GraphQLInspectorLink`, covering HTTP queries/mutations and WebSocket subscriptions, with variables shown separately from the query document. *(from upstream)*
 - **Server-Sent Events / streaming logs** — `SseLogController`, a lightweight global log sink that groups raw log lines into per-connection timelines (grouped whenever a line contains a `CONNECTING -> <url>` marker), merged into the same "All" timeline as HTTP/GraphQL traffic. *(added in this fork)*
 - **Automatic network file logging** — every `Image.network`/`NetworkImage` load and any other non-API file (video, audio, PDF, font, archive, download, ...) fetched over `dart:io`'s `HttpClient` is logged to its own "Files" tab automatically, with zero code changes, via a global `HttpOverrides` — the same mechanism Flutter DevTools' network view uses. *(added in this fork)*
-- **Firebase Messaging Inspector (opt-in)** — automatically captures `FirebaseMessaging.onMessage` (foreground messages) with no listener code required, plus a helper for logging `onBackgroundMessage`. Shows message ID, sender ID, `from`, sent time, TTL, collapse key, message type, data payload, and Android/APNs notification details, merged into the same "All" timeline. Off by default; data payload keys that look sensitive are redacted automatically. *(added in this fork; see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in))*
+- **Firebase Messaging Inspector (opt-in)** — automatically captures `FirebaseMessaging.onMessage` (foreground messages) with no listener code required, plus a helper for logging `onBackgroundMessage`. Shows message ID, sender ID, `from`, sent time, TTL, collapse key, message type, data payload, and Android/APNs notification details, merged into the same "All" timeline. Off by default, switchable off from the inspector UI at runtime (the choice sticks across restarts); data payload keys that look sensitive are redacted automatically. *(added in this fork; see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in))*
 - **Saving logs to disk, per category** — keep HTTP/GraphQL, SSE, Firebase Messaging and file logs on the device so they survive app restarts, choosing which of those four categories to save from a switch in the inspector (or a one-time prompt on first open), then export everything as a single CSV (or JSON) file and share it by email or anywhere else. Nothing is written until a category is switched on. *(added in this fork; see [Saving logs to disk](#9-saving-logs-to-disk--exporting-them))*
 - **Manual logging** — push a `RequestDetails` into `InspectorController` for any transport not covered above (this is also how the `QUERY` pseudo-method is logged in the example app).
 - **`RequestMethod.QUERY`** — an extra pseudo-method for read-only requests that carry a body (distinct from `GET`), alongside `GET`/`POST`/`PUT`/`PATCH`/`DELETE` and the internally-used `WS`. *(added in this fork)*
@@ -251,7 +251,38 @@ Firebase must already be initialized (`await Firebase.initializeApp()`) by the t
 
 With this enabled, the inspector automatically logs **`FirebaseMessaging.onMessage`** — foreground messages — with no `FirebaseMessaging.onMessage.listen(...)` code of your own.
 
-That's the only entry point hooked automatically. `onMessageOpenedApp` is not listened to, and `getInitialMessage()` is intentionally **not** called: that call consumes the cold-start message (it resolves the launch intent/notification exactly once), so reading it here would make your own `getInitialMessage()` return `null`. Log either one yourself if you want it in the timeline.
+That's the only entry point hooked automatically, and it's the only one that can be hooked without changing your app's behaviour: `onMessage` is a broadcast stream, so listening to it costs nothing.
+
+**Why `getInitialMessage()` is not called.** Per the Firebase docs, *"once the `RemoteMessage` has been consumed, it will be removed and further calls to `getInitialMessage` will be null."* It's a one-shot: whoever calls it first wins. If this package called it during startup, your app's own `getInitialMessage()` would get `null` and the notification tap that cold-started the app would silently stop routing anywhere. So the inspector never calls it. `onMessageOpenedApp` isn't listened to either, to keep the package's footprint to that single non-consuming stream.
+
+**Switching capture off from the device.** The inspector's app bar has a **Capture settings** button (the tune icon, shown only when you opted into a capture source) with a switch per source. Turning *Firebase Messaging* off detaches the listener immediately **and is remembered across restarts** - on the next launch the package doesn't touch `FirebaseMessaging` at all.
+
+That persistence is the point: anything that interferes with push handling shows up at cold start, long before a tester can open the inspector, so a runtime-only switch would be useless. If a build ever misbehaves around notifications, a tester can rule the inspector out from the device without a rebuild or a code change. The switch is a kill switch for an app that opted in - it can't enable capture in an app that passed `enabled: false`.
+
+The choice lives in `inspector_preferences.json` alongside the saved logs, and is readable from code via `InspectorPreferences.instance.firebaseMessagingEnabled` (`null` = never touched, so the config value applies). `FirebaseMessagingInspector.isCapturing` is a `ValueNotifier<bool>` if you want to surface the state in your own UI.
+
+**Logging them yourself.** Your app already calls `getInitialMessage()` once for its own routing - pass that same instance to the inspector and you get the log entry without a second consuming call:
+
+```dart
+final initial = await FirebaseMessaging.instance.getInitialMessage();
+if (initial != null) {
+  FirebaseMessagingInspector.logMessage(
+    initial,
+    FirebaseMessagingEventType.initialMessage,
+  );
+  // ...your existing cold-start routing, untouched.
+}
+
+FirebaseMessaging.onMessageOpenedApp.listen((message) {
+  FirebaseMessagingInspector.logMessage(
+    message,
+    FirebaseMessagingEventType.onMessageOpenedApp,
+  );
+  // ...your existing tap handling.
+});
+```
+
+`logMessage` applies the same data-payload masking as the automatic logging and takes an optional `config:` if you want different masking rules.
 
 For each event it records: message ID, sender ID, `from`, sent time, TTL, collapse key, message type, the data payload, and (when present) the notification's title/body plus Android (`channelId`, `imageUrl`, `priority`, …) and Apple/APNs (`badge`, `subtitle`) details. These show up in the same "All" timeline as HTTP/GraphQL/SSE traffic, tagged `Firebase Messaging`, filterable via the item-type filter, with their own detail page and Slack share support.
 

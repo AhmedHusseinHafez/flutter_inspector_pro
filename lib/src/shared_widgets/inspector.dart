@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/filters_dialog.dart';
+import 'package:requests_inspector/src/shared_widgets/capture_settings_dialog.dart';
 import 'package:requests_inspector/src/shared_widgets/empty_state.dart';
 import 'package:requests_inspector/src/shared_widgets/firebase_messaging_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/firebase_messaging_item.dart';
@@ -97,6 +98,7 @@ class Inspector extends StatelessWidget {
 
   List<Widget> _buildActions(bool isDarkMode) {
     return [
+      _buildCaptureSettingsButton(isDarkMode),
       _buildStorageButton(isDarkMode),
       Selector<InspectorController, int>(
         selector: (_, c) => c.selectedTab,
@@ -130,6 +132,23 @@ class Inspector extends StatelessWidget {
         },
       ),
     ];
+  }
+
+  /// Opens the "Capture settings" dialog, where a log source the inspector
+  /// hooks into the app (currently Firebase Messaging) can be switched off
+  /// from the device - no rebuild needed - if it ever interferes with the
+  /// app. Hidden when the app opted into none of those sources.
+  Widget _buildCaptureSettingsButton(bool isDarkMode) {
+    if (!CaptureSettingsDialog.hasAnySource) return const SizedBox.shrink();
+
+    return Builder(
+      builder: (context) => IconButton(
+        tooltip: 'Capture settings',
+        icon: const Icon(Icons.tune_rounded),
+        onPressed: () =>
+            CaptureSettingsDialog.show(context, isDarkMode: isDarkMode),
+      ),
+    );
   }
 
   /// Opens the "Save logs to disk" dialog, where each log category can be

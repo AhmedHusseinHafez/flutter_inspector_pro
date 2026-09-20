@@ -19,6 +19,7 @@ export 'src/firebase_messaging/firebase_messaging_event.dart';
 export 'src/firebase_messaging/firebase_messaging_inspector_config.dart';
 export 'src/firebase_messaging/firebase_messaging_log_controller.dart';
 export 'src/firebase_messaging/firebase_messaging_inspector.dart';
+export 'src/persistence/inspector_preferences.dart';
 export 'src/persistence/log_export_format.dart';
 export 'src/persistence/log_exporter.dart';
 export 'src/persistence/log_file_store.dart' show LogFileStore, PersistedLogStats;
