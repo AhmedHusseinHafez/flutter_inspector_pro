@@ -1,8 +1,8 @@
 /// Opt-in configuration for the Firebase Messaging inspector.
 ///
 /// Pass this to [RequestsInspector] to automatically capture
-/// `FirebaseMessaging.onMessage` and `onMessageOpenedApp` without writing
-/// any listener code yourself:
+/// `FirebaseMessaging.onMessage` (foreground messages) without writing any
+/// listener code yourself:
 ///
 /// ```dart
 /// RequestsInspector(
@@ -12,9 +12,10 @@
 /// )
 /// ```
 ///
-/// `getInitialMessage()` is deliberately not called by the inspector: that
-/// call consumes the cold-start message, so reading it here would make the
-/// app's own `getInitialMessage()` return null.
+/// Only `onMessage` is hooked. `onMessageOpenedApp` isn't listened to, and
+/// `getInitialMessage()` is deliberately not called: that call consumes the
+/// cold-start message, so reading it here would make the app's own
+/// `getInitialMessage()` return null.
 ///
 /// Firebase must already be initialized (`Firebase.initializeApp()`) by the
 /// time `RequestsInspector` builds; if it isn't, the inspector simply skips

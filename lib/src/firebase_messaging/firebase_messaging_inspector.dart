@@ -8,8 +8,9 @@ import 'firebase_messaging_event.dart';
 import 'firebase_messaging_inspector_config.dart';
 import 'firebase_messaging_log_controller.dart';
 
-/// Auto-attaches to `FirebaseMessaging.instance`'s streams so the Inspector
-/// can log messages without the app writing any listener code.
+/// Auto-attaches to `FirebaseMessaging.onMessage` so the Inspector can log
+/// foreground messages without the app writing any listener code. No other
+/// Firebase Messaging entry point is hooked automatically.
 ///
 /// [RequestsInspector] calls [attach] for you when
 /// [FirebaseMessagingInspectorConfig.enabled] is true; you shouldn't need to
@@ -20,7 +21,7 @@ import 'firebase_messaging_log_controller.dart';
 /// not share memory with the running app (that's why Firebase requires the
 /// handler to be a top-level/static function in the first place). Because of
 /// that, this class cannot auto-attach to background messages the way it
-/// does for `onMessage`/`onMessageOpenedApp` - doing so would require either
+/// does for `onMessage` - doing so would require either
 /// replacing the app's own handler (which this package will never do, since
 /// apps may already have `FirebaseMessaging.onBackgroundMessage(...)`
 /// registered) or silently producing log entries nobody can see. Instead,
@@ -32,19 +33,19 @@ class FirebaseMessagingInspector {
 
   static bool _attached = false;
   static StreamSubscription<RemoteMessage>? _onMessageSubscription;
-  static StreamSubscription<RemoteMessage>? _onMessageOpenedAppSubscription;
 
-  /// Attaches `onMessage`/`onMessageOpenedApp` listeners. Safe to call more
+  /// Attaches a `FirebaseMessaging.onMessage` listener - foreground
+  /// messages are the only events logged automatically. Safe to call more
   /// than once (e.g. across hot reloads or multiple `RequestsInspector`
   /// rebuilds) - only the first call with `enabled: true` actually registers
-  /// listeners.
+  /// the listener.
   ///
-  /// Deliberately does NOT call `FirebaseMessaging.getInitialMessage()`: that
-  /// call consumes the cold-start message (it resolves the pending intent /
-  /// launch notification exactly once), so inspecting it here would make the
-  /// app's own `getInitialMessage()` return null. Cold-start messages are
-  /// therefore not logged automatically - log one yourself from your own
-  /// `getInitialMessage()` result if you need it in the timeline.
+  /// Deliberately does NOT listen to `onMessageOpenedApp` or call
+  /// `getInitialMessage()`. The latter consumes the cold-start message (it
+  /// resolves the pending intent / launch notification exactly once), so
+  /// inspecting it here would make the app's own `getInitialMessage()`
+  /// return null. Log either one yourself via [FirebaseMessagingEvent] if
+  /// you need it in the timeline.
   ///
   /// If Firebase hasn't been initialized yet, this fails silently (aside
   /// from a debug-mode warning) rather than throwing, so a misordered
@@ -60,17 +61,6 @@ class FirebaseMessagingInspector {
           FirebaseMessagingEvent.fromRemoteMessage(
             message,
             FirebaseMessagingEventType.onMessage,
-            maskedDataKeys: config.maskedDataKeys,
-          ),
-        );
-      });
-
-      _onMessageOpenedAppSubscription =
-          FirebaseMessaging.onMessageOpenedApp.listen((message) {
-        FirebaseMessagingLogController.log(
-          FirebaseMessagingEvent.fromRemoteMessage(
-            message,
-            FirebaseMessagingEventType.onMessageOpenedApp,
             maskedDataKeys: config.maskedDataKeys,
           ),
         );
@@ -104,8 +94,7 @@ class FirebaseMessagingInspector {
   /// Inspector UI of the already-running app session. This call is still
   /// useful (it's a real, structured log entry, and cheap to leave in
   /// place), but don't expect a background push to show up live; only
-  /// foreground events (`onMessage`, `onMessageOpenedApp`) are guaranteed
-  /// visible in the running UI.
+  /// foreground `onMessage` events are guaranteed visible in the running UI.
   static Future<void> logBackgroundMessage(
     RemoteMessage message, {
     FirebaseMessagingInspectorConfig config =
@@ -121,13 +110,11 @@ class FirebaseMessagingInspector {
     );
   }
 
-  /// Detaches listeners and resets attachment state. Exposed for tests.
+  /// Detaches the listener and resets attachment state. Exposed for tests.
   @visibleForTesting
   static void reset() {
     _onMessageSubscription?.cancel();
-    _onMessageOpenedAppSubscription?.cancel();
     _onMessageSubscription = null;
-    _onMessageOpenedAppSubscription = null;
     _attached = false;
   }
 }

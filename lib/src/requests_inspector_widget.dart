@@ -45,9 +45,9 @@ class RequestsInspector extends StatefulWidget {
   final bool _defaultIsDarkMode;
   final GlobalKey<NavigatorState>? _navigatorKey;
 
-  /// Opt-in config to auto-capture Firebase Messaging events
-  /// (`onMessage`/`onMessageOpenedApp`) into the inspector. Disabled by
-  /// default; see [FirebaseMessagingInspectorConfig].
+  /// Opt-in config to auto-capture foreground Firebase Messaging events
+  /// (`onMessage`) into the inspector. Disabled by default; see
+  /// [FirebaseMessagingInspectorConfig].
   final FirebaseMessagingInspectorConfig _firebaseMessaging;
 
   /// Controls saving logs to disk: which categories are saved by default,
