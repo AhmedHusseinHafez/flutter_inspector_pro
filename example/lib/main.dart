@@ -9,6 +9,24 @@ import 'package:requests_inspector/requests_inspector.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
+/// Example `ApiIntelligenceAiProvider`: in a real app this would call your
+/// own backend/LLM proxy with the sanitized payload. Here it just returns a
+/// canned report so the "API Intelligence" tab's AI section can be tried
+/// out without any real AI dependency.
+class DemoApiIntelligenceAiProvider implements ApiIntelligenceAiProvider {
+  @override
+  Future<String> generateReport(Map<String, dynamic> sanitizedPayload) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    final session = sanitizedPayload['session'] as Map<String, dynamic>?;
+    return 'API INTELLIGENCE REPORT (demo)\n\n'
+        'Session Overview\n'
+        '${session?['requestCount'] ?? 0} requests across '
+        '${session?['uniqueEndpoints'] ?? 0} endpoints were reviewed.\n\n'
+        'This is a canned response from the example app\'s '
+        'ApiIntelligenceAiProvider - wire up your own backend call here.';
+  }
+}
+
 void main() {
   runApp(
     const MyApp(),
@@ -68,6 +86,9 @@ class _MyAppState extends State<MyApp> {
           // saving from app startup without asking, e.g.
           // `defaultTypes: {PersistedLogType.http}`.
           logPersistence: const LogPersistenceConfig(),
+          apiIntelligence: ApiIntelligenceConfig(
+            aiProvider: DemoApiIntelligenceAiProvider(),
+          ),
           child: child!,
         );
       },

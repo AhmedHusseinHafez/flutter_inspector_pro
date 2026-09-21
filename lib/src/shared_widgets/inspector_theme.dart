@@ -62,4 +62,10 @@ class InspectorTheme {
     if (statusCode > 299) return statusRedirect;
     return statusOk;
   }
+
+  // API Intelligence finding severity colors.
+  static const Color severityHealthy = Color(0xFF12B76A);
+  static const Color severityWatch = Color(0xFF667085);
+  static const Color severityOptimizationCandidate = Color(0xFFF79009);
+  static const Color severityHighPriority = Color(0xFFF04438);
 }

@@ -197,6 +197,13 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
         final graphqlVarsOffset = currentOffset;
         currentOffset += graphqlVarsMatches;
 
+        final responseHeadersPretty = request.responseHeadersPretty;
+        final responseHeadersMatches = SearchHelper.findMatches(
+                text: responseHeadersPretty, query: query)
+            .length;
+        final responseHeadersOffset = currentOffset;
+        currentOffset += responseHeadersMatches;
+
         final responseBodyPretty = request.responseBodyPretty;
         final responseBodyMatches =
             SearchHelper.findMatches(text: responseBodyPretty, query: query)
@@ -217,6 +224,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
                     currentMatchIndex < requestBodyOffset + requestBodyMatches;
             final isGraphqlActive = currentMatchIndex >= graphqlVarsOffset &&
                 currentMatchIndex < graphqlVarsOffset + graphqlVarsMatches;
+            final isResponseHeadersActive = currentMatchIndex >=
+                    responseHeadersOffset &&
+                currentMatchIndex <
+                    responseHeadersOffset + responseHeadersMatches;
             final isResponseBodyActive = currentMatchIndex >=
                     responseBodyOffset &&
                 currentMatchIndex < responseBodyOffset + responseBodyMatches;
@@ -303,6 +314,22 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
                       searchQuery: query,
                       matchIndexOffset: graphqlVarsOffset,
                       expandChildren: state.expandChildren || isGraphqlActive,
+                    ),
+                  ),
+                if (request.responseHeaders != null)
+                  _buildExpandableSection(
+                    context: context,
+                    txtCopy: responseHeadersPretty,
+                    title: 'Response Headers',
+                    initiallyExpanded: false,
+                    children: _buildDataBlock(
+                      request.responseHeaders,
+                      isTreeView: state.isTreeView,
+                      isDarkMode: state.isDarkMode,
+                      searchQuery: query,
+                      matchIndexOffset: responseHeadersOffset,
+                      expandChildren:
+                          state.expandChildren || isResponseHeadersActive,
                     ),
                   ),
                 if (request.responseBody != null)

@@ -15,6 +15,7 @@ class RequestDetails {
   final dynamic requestBody;
   final dynamic graphqlRequestVars;
   final dynamic responseBody;
+  final dynamic responseHeaders;
   late final DateTime sentTime;
   final DateTime? receivedTime;
 
@@ -28,6 +29,7 @@ class RequestDetails {
     this.requestBody,
     this.graphqlRequestVars,
     this.responseBody,
+    this.responseHeaders,
     DateTime? sentTime,
     this.receivedTime,
   }) {
@@ -80,6 +82,12 @@ class RequestDetails {
   String get responseBodyPretty => _responseBodyPretty ??=
       responseBody != null ? JsonPrettyConverter().convert(responseBody) : '';
 
+  String? _responseHeadersPretty;
+  String get responseHeadersPretty => _responseHeadersPretty ??=
+      responseHeaders != null
+          ? JsonPrettyConverter().convert(responseHeaders)
+          : '';
+
   RequestDetails copyWith({
     String? requestName,
     RequestMethod? requestMethod,
@@ -90,6 +98,7 @@ class RequestDetails {
     requestBody,
     graphqlRequestVars,
     responseBody,
+    responseHeaders,
     DateTime? sentTime,
     DateTime? receivedTime,
   }) {
@@ -103,6 +112,7 @@ class RequestDetails {
       requestBody: requestBody ?? this.requestBody,
       graphqlRequestVars: graphqlRequestVars ?? this.graphqlRequestVars,
       responseBody: responseBody ?? this.responseBody,
+      responseHeaders: responseHeaders ?? this.responseHeaders,
       sentTime: sentTime ?? this.sentTime,
       receivedTime: receivedTime ?? this.receivedTime,
     );
@@ -110,7 +120,7 @@ class RequestDetails {
 
   @override
   String toString() {
-    return 'RequestDetails(requestName: $requestName, requestMethod: $requestMethod, url: $url, statusCode: $statusCode, headers: $headers, queryParameters: $queryParameters, requestBody: $requestBody, graphqlRequestVars: $graphqlRequestVars, responseBody: $responseBody, sentTime: $sentTime, receivedTime: $receivedTime)';
+    return 'RequestDetails(requestName: $requestName, requestMethod: $requestMethod, url: $url, statusCode: $statusCode, headers: $headers, queryParameters: $queryParameters, requestBody: $requestBody, graphqlRequestVars: $graphqlRequestVars, responseBody: $responseBody, responseHeaders: $responseHeaders, sentTime: $sentTime, receivedTime: $receivedTime)';
   }
 
   @override
@@ -127,6 +137,7 @@ class RequestDetails {
         other.requestBody == requestBody &&
         other.graphqlRequestVars == graphqlRequestVars &&
         other.responseBody == responseBody &&
+        other.responseHeaders == responseHeaders &&
         other.sentTime == sentTime &&
         other.receivedTime == receivedTime;
   }
@@ -142,6 +153,7 @@ class RequestDetails {
         requestBody.hashCode ^
         graphqlRequestVars.hashCode ^
         responseBody.hashCode ^
+        responseHeaders.hashCode ^
         sentTime.hashCode ^
         receivedTime.hashCode;
   }
@@ -157,6 +169,7 @@ class RequestDetails {
       'requestBody': requestBody,
       'graphqlRequestVars': graphqlRequestVars,
       'responseBody': responseBody,
+      'responseHeaders': responseHeaders,
       'sentTime': sentTime.toIso8601String(),
       'receivedTime': receivedTime?.toIso8601String(),
     }..removeWhere((_, v) => v == null);
@@ -175,6 +188,7 @@ class RequestDetails {
       requestBody: map['requestBody'] as dynamic,
       graphqlRequestVars: map['graphqlRequestVars'] as dynamic,
       responseBody: map['responseBody'] as dynamic,
+      responseHeaders: map['responseHeaders'] as dynamic,
       sentTime: DateTime.parse(map['sentTime']),
       receivedTime: map['receivedTime'] != null
           ? DateTime.parse(map['receivedTime'])

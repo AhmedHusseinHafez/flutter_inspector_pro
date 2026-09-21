@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/filters_dialog.dart';
+import 'package:requests_inspector/src/shared_widgets/api_intelligence_tab.dart';
 import 'package:requests_inspector/src/shared_widgets/capture_settings_dialog.dart';
 import 'package:requests_inspector/src/shared_widgets/empty_state.dart';
 import 'package:requests_inspector/src/shared_widgets/firebase_messaging_details_page.dart';
@@ -123,6 +124,7 @@ class Inspector extends StatelessWidget {
                     SseLogController.clear();
                     FileLogController.clear();
                     FirebaseMessagingLogController.clear();
+                    ApiIntelligenceController.instance.clear();
                   },
                 );
 
@@ -239,6 +241,12 @@ class Inspector extends StatelessWidget {
             isSelected: selectedTab == 2,
             onTap: () => InspectorController().selectedTab = 2,
           ),
+          _buildTabItem(
+            title: 'API Intelligence',
+            isDarkMode: isDarkMode,
+            isSelected: selectedTab == 3,
+            onTap: () => InspectorController().selectedTab = 3,
+          ),
         ],
       ),
     );
@@ -268,8 +276,11 @@ class Inspector extends StatelessWidget {
           ),
           child: Text(
             title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13.0,
+              fontSize: 12.0,
               color: isSelected
                   ? InspectorTheme.primary
                   : (isDarkMode ? Colors.white70 : Colors.black54),
@@ -290,6 +301,9 @@ class Inspector extends StatelessWidget {
     }
     if (selectedTab == 2) {
       return [_buildFilesTab(isDarkMode)];
+    }
+    if (selectedTab == 3) {
+      return [ApiIntelligenceTab(isDarkMode: isDarkMode)];
     }
     return [_buildDetailsTab(isDarkMode)];
   }

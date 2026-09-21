@@ -27,3 +27,18 @@ linter:
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+analyzer:
+  errors:
+    invalid_annotation_target: ignore
+  exclude:
+  - '**/.dart_tool/**'
+  - '**/flutter/**'
+  - '**/sdk/**'
+  - '**/packages/flutter/**'
+  - '**/*.freezed.dart'
+  - '**/*.g.dart'     
+  - "build/**"
+  - '**/l10n.dart/**'
+  - '**/messages_all.dart/**'
+  - '**/messages_ar.dart/**'
+  - '**/messages_en.dart/**'

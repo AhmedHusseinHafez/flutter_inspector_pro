@@ -36,6 +36,7 @@ class HttpInspectorClient extends http.BaseClient {
           statusCode: streamedResponse.statusCode,
           responseBody:
               _tryDecodeJson(utf8.decode(bodyBytes, allowMalformed: true)),
+          responseHeaders: streamedResponse.headers,
           sentTime: sentTime,
           receivedTime: DateTime.now(),
         ),
