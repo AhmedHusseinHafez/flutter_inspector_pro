@@ -30,6 +30,7 @@ export 'src/persistence/persisted_log_type.dart';
 export 'src/api_intelligence/api_intelligence_config.dart';
 export 'src/api_intelligence/api_intelligence_controller.dart';
 export 'src/api_intelligence/ai/api_intelligence_ai_provider.dart';
+export 'src/api_intelligence/ai/gemini_api_intelligence_ai_provider.dart';
 export 'src/api_intelligence/ai/api_intelligence_payload_builder.dart';
 export 'src/api_intelligence/analyzer/api_intelligence_analyzer.dart';
 export 'src/api_intelligence/models/analysis_result.dart';

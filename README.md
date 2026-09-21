@@ -22,6 +22,7 @@ An in-app network inspector for Flutter apps. Long-press anywhere on screen and 
   - [File network logging (automatic)](#7-file-network-logging-automatic)
   - [Firebase Messaging Inspector (opt-in)](#8-firebase-messaging-inspector-opt-in)
   - [Saving logs to disk & exporting them](#9-saving-logs-to-disk--exporting-them)
+  - [API Intelligence — network analysis (with optional AI)](#10-api-intelligence--network-analysis-with-optional-ai)
 - [Filtering & search](#filtering--search)
 - [Sharing & exporting requests](#sharing--exporting-requests)
 - [Credits & Relationship to the Upstream Project](#-credits--relationship-to-the-upstream-project)
@@ -55,6 +56,7 @@ It's aimed at day-to-day development and QA: reproducing a bug on a real device/
 - **Automatic network file logging** — every `Image.network`/`NetworkImage` load and any other non-API file (video, audio, PDF, font, archive, download, ...) fetched over `dart:io`'s `HttpClient` is logged to its own "Files" tab automatically, with zero code changes, via a global `HttpOverrides` — the same mechanism Flutter DevTools' network view uses. *(added in this fork)*
 - **Firebase Messaging Inspector (opt-in)** — automatically captures `FirebaseMessaging.onMessage` (foreground messages) with no listener code required, plus a helper for logging `onBackgroundMessage`. Shows message ID, sender ID, `from`, sent time, TTL, collapse key, message type, data payload, and Android/APNs notification details, merged into the same "All" timeline. Off by default, switchable off from the inspector UI at runtime (the choice sticks across restarts); data payload keys that look sensitive are redacted automatically. *(added in this fork; see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in))*
 - **Saving logs to disk, per category** — keep HTTP/GraphQL, SSE, Firebase Messaging and file logs on the device so they survive app restarts, choosing which of those four categories to save from a switch in the inspector (or a one-time prompt on first open), then export everything as a single CSV (or JSON) file and share it by email or anywhere else. Nothing is written until a category is switched on. *(added in this fork; see [Saving logs to disk](#9-saving-logs-to-disk--exporting-them))*
+- **API Intelligence — on-demand network analysis, with optional AI interpretation** — an "API Intelligence" tab that runs a deterministic analyzer (latency percentiles, duplicate/retry detection, caching & compression hints, payload/pagination checks, status-code patterns, and more) over everything already captured, entirely on-device and only when you tap **Analyze Network**. Paste a Gemini API key (`ApiIntelligenceConfig(geminiApiKey: '...')`) and an LLM adds a human-readable interpretation on top — or implement `ApiIntelligenceAiProvider` yourself to route through your own backend/model instead. *(added in this fork; see [API Intelligence](#10-api-intelligence--network-analysis-with-optional-ai))*
 - **Manual logging** — push a `RequestDetails` into `InspectorController` for any transport not covered above (this is also how the `QUERY` pseudo-method is logged in the example app).
 - **`RequestMethod.QUERY`** — an extra pseudo-method for read-only requests that carry a body (distinct from `GET`), alongside `GET`/`POST`/`PUT`/`PATCH`/`DELETE` and the internally-used `WS`. *(added in this fork)*
 - **Stopper** — pause an outgoing request or an incoming response and edit it before it continues, useful for forcing error codes or malformed payloads without touching a backend. *(from upstream; see the [Stopper section](#6-stopper--intercept-requests--responses) below for how it's actually enabled in the current version — it's programmatic, not a UI toggle right now)*
@@ -109,6 +111,7 @@ Open the inspector by **long-pressing** any free space on screen.
 | `onInspectorOpened` / `onInspectorClosed` | — | Callbacks fired when the inspector screen opens/closes. |
 | `firebaseMessaging` | `FirebaseMessagingInspectorConfig()` (disabled) | Opt-in Firebase Messaging capture — see [Firebase Messaging Inspector](#8-firebase-messaging-inspector-opt-in). |
 | `logPersistence` | `LogPersistenceConfig()` (offered, saving nothing) | Which log categories get written to disk, whether to ask on first open, and retention — see [Saving logs to disk](#9-saving-logs-to-disk--exporting-them). |
+| `apiIntelligence` | `null` (no AI provider) | Turns on the "API Intelligence" tab's AI interpretation layer — pass `ApiIntelligenceConfig(geminiApiKey: '...')` or your own `aiProvider` — see [API Intelligence](#10-api-intelligence--network-analysis-with-optional-ai). |
 
 `ShowInspectorOn.Shaking` and `ShowInspectorOn.Both` still exist as enum values for source compatibility with older code, but behave exactly like `ShowInspectorOn.LongPress` now — shake-to-open (and its `sensors_plus` dependency) was removed in this fork; long-press is the only trigger.
 
@@ -395,6 +398,79 @@ final entries = await LogPersistenceController.instance.readSavedEntries(
 Logs live in `<app support dir>/requests_inspector_logs/` (via `path_provider`), one append-only [JSON Lines](https://jsonlines.org) file per category plus a small `settings.json` holding the saved choice. That's inside the app's own sandbox, so it isn't readable by other apps and goes away when the app is uninstalled — but it **is** a plain-text copy of your traffic sitting on the device. Request/response bodies routinely contain tokens and personal data, so gate this the way you'd gate the inspector itself (`enabled: false` in release builds), or drop the payloads with `includeBodies: false` and keep just the metadata.
 
 Web isn't supported (there's no writable app directory): the controller detects it, stays off, and the rest of the inspector keeps working.
+
+### 10. API Intelligence — network analysis (with optional AI)
+
+The **API Intelligence** tab looks at everything already captured in the current session and surfaces what's worth investigating — slow or unstable endpoints, potential duplicate/retry calls, missing caching headers, oversized or unpaginated payloads, sequential requests that might be parallelizable, and so on. It's built entirely from the network telemetry this package already captures — no Dart source inspection, no continuous background analysis. Nothing runs until you tap **Analyze Network**.
+
+Every finding is evidence-based and labeled with one of four investigation levels — `Healthy`, `Watch`, `Optimization Candidate`, `High Priority Investigation` — never a single overall "score". A repeated request is reported as a *potential* redundant request with the evidence behind it (call count, how many returned identical responses, how close together they were), never asserted as definitely wrong, since a legitimate refresh/retry/poll looks identical in telemetry.
+
+This works fully offline with **zero configuration** — the deterministic analyzer alone already produces a full report. Nothing needs enabling; just open the tab and tap **Analyze Network**.
+
+#### Turning on the AI interpretation layer
+
+On top of the deterministic report, an LLM can add a human-readable interpretation — correlating findings, prioritizing what to fix first, explaining likely impact in plain language. The simplest way to turn this on is to paste a **Gemini API key** ([get one free at aistudio.google.com/apikey](https://aistudio.google.com/apikey)) — that's the entire setup:
+
+```dart
+RequestsInspector(
+  navigatorKey: navigatorKey,
+  apiIntelligence: ApiIntelligenceConfig(geminiApiKey: 'YOUR_GEMINI_API_KEY'),
+  child: child!,
+)
+```
+
+That's it — `ApiIntelligenceConfig` builds a `GeminiApiIntelligenceAiProvider` for you and calls the Gemini API directly with the deterministic analysis's **already-sanitized** payload (sensitive headers like `Authorization`, cookies, `X-Api-Key`, anything ending in `-token`/`-secret`/`-key`, and sensitive body keys like `password`, `token`, `apiKey`, `secret`, ... are redacted before anything is sent; raw request/response bodies are never sent either, only the derived metrics/evidence).
+
+> ⚠️ **Where to put the key.** Like any client-side API key, one embedded in your app can be extracted from the binary. That's fine for local development, an internal/QA build, or a key you've scoped and can rotate — for a production app handling untrusted users, load the key from a build-time flag/remote config rather than hardcoding it, or use the advanced option below to route the call through your own backend instead.
+
+Leave `apiIntelligence` unset (or omit `geminiApiKey`) and the tab still works — it just shows *"Local network analysis completed. AI interpretation is unavailable."* below the deterministic findings instead of an AI section. If the Gemini call fails (bad key, no network, rate limit, ...) the deterministic results stay on screen regardless; the failure only shows up as a small inline error, it never blocks or clears what's already there.
+
+The `example/` app has a `_geminiApiKey` constant at the top of `example/lib/main.dart` — paste a real key there to try the AI section end-to-end.
+
+##### Advanced: bring your own backend/LLM instead of Gemini
+
+If you'd rather route the call through your own backend (e.g. to call a different model, add your own rate limiting, or avoid a client-side key entirely), implement `ApiIntelligenceAiProvider` yourself and pass it as `aiProvider` instead of `geminiApiKey`:
+
+```dart
+abstract class ApiIntelligenceAiProvider {
+  Future<String> generateReport(Map<String, dynamic> sanitizedPayload);
+}
+
+class MyAiProvider implements ApiIntelligenceAiProvider {
+  @override
+  Future<String> generateReport(Map<String, dynamic> sanitizedPayload) async {
+    // Call your own backend, which forwards the (already-sanitized) payload
+    // to whichever LLM you use, and returns the model's report text.
+    final response = await myBackendClient.post(
+      '/api-intelligence/interpret',
+      data: sanitizedPayload,
+    );
+    return response.data['report'] as String;
+  }
+}
+
+RequestsInspector(
+  navigatorKey: navigatorKey,
+  apiIntelligence: ApiIntelligenceConfig(aiProvider: MyAiProvider()),
+  child: child!,
+)
+```
+
+The string you return is rendered as-is in the tab, so shape it however your model produces it (a system prompt following the report layout in `GeminiApiIntelligenceAiProvider`'s source — session overview, performance, redundancy, caching, payload, pagination, waterfall, reliability, HTTP, mobile suitability — works well). Pass either `geminiApiKey` or `aiProvider`, not both.
+
+Everything is available programmatically too, without opening the UI:
+
+```dart
+final result = ApiIntelligenceAnalyzer.analyze(InspectorController().requestsList);
+print(result.session.toMap());
+for (final finding in result.findings) {
+  print('${finding.severity.label}: ${finding.observation}');
+}
+
+// Or drive the same flow the tab uses (deterministic + optional AI):
+await ApiIntelligenceController.instance.analyze(InspectorController().requestsList);
+print(ApiIntelligenceController.instance.aiReport);
+```
 
 ---
 

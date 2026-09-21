@@ -25,7 +25,7 @@ class RequestsInspector extends StatefulWidget {
     FirebaseMessagingInspectorConfig firebaseMessaging =
         const FirebaseMessagingInspectorConfig(),
     LogPersistenceConfig logPersistence = const LogPersistenceConfig(),
-    ApiIntelligenceConfig apiIntelligence = const ApiIntelligenceConfig(),
+    ApiIntelligenceConfig? apiIntelligence,
   })  : _enabled = enabled,
         _hideInspectorBanner = hideInspectorBanner,
         _showInspectorOn = showInspectorOn,
@@ -60,7 +60,7 @@ class RequestsInspector extends StatefulWidget {
   /// Configures the on-demand "API Intelligence" network analysis tab,
   /// including an optional AI interpretation layer. Deterministic analysis
   /// works with no config at all - see [ApiIntelligenceConfig].
-  final ApiIntelligenceConfig _apiIntelligence;
+  final ApiIntelligenceConfig? _apiIntelligence;
 
   /// Called when the inspector screen is opened (long-press).
   final VoidCallback? onInspectorOpened;
@@ -103,7 +103,7 @@ class _RequestsInspectorState extends State<RequestsInspector>
         : Future<void>.value();
 
     ApiIntelligenceController.instance.aiProvider =
-        widget._apiIntelligence.aiProvider;
+        widget._apiIntelligence?.aiProvider;
   }
 
   @override
