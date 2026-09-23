@@ -226,6 +226,30 @@ void main() {
       expect(entries.last.url, 'https://api.example.com/7');
     });
 
+    test('keeps every entry when maxEntriesPerType is unlimited', () async {
+      await controller.init(
+        const LogPersistenceConfig(
+          askOnFirstOpen: false,
+          defaultTypes: {PersistedLogType.http},
+          maxEntriesPerType: LogPersistenceConfig.unlimited,
+        ),
+        directory: tempDir,
+      );
+
+      for (var i = 0; i < 12; i++) {
+        controller.recordRequest(
+          RequestDetails(
+            requestMethod: RequestMethod.GET,
+            url: 'https://api.example.com/$i',
+            sentTime: DateTime(2026, 9, 19, 10, i),
+          ),
+        );
+      }
+      await controller.flush();
+
+      expect(await controller.readSavedEntries(), hasLength(12));
+    });
+
     test('attributes SSE lines to the connection they belong to', () async {
       await controller.init(
         const LogPersistenceConfig(
@@ -292,6 +316,30 @@ void main() {
       final entry = (await controller.readSavedEntries()).single;
       expect(entry.details, endsWith('…(truncated)'));
       expect(entry.details!.length, lessThan(80));
+    });
+
+    test('keeps details in full when maxDetailsLength is unlimited', () async {
+      await controller.init(
+        const LogPersistenceConfig(
+          askOnFirstOpen: false,
+          defaultTypes: {PersistedLogType.http},
+          maxDetailsLength: LogPersistenceConfig.unlimited,
+        ),
+        directory: tempDir,
+      );
+
+      controller.recordRequest(
+        RequestDetails(
+          requestMethod: RequestMethod.POST,
+          url: 'https://api.example.com/big',
+          responseBody: {'payload': 'x' * 500},
+        ),
+      );
+      await controller.flush();
+
+      final entry = (await controller.readSavedEntries()).single;
+      expect(entry.details, isNot(endsWith('…(truncated)')));
+      expect(entry.details!.length, greaterThan(500));
     });
 
     test('clear deletes one type, or everything', () async {

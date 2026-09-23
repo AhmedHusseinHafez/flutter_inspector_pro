@@ -51,6 +51,11 @@ class LogPersistenceConfig {
 
   /// Hard cap on the number of saved entries per category. Once exceeded, the
   /// oldest entries are dropped so the files can't grow without bound.
+  ///
+  /// Pass [unlimited] (or any value `<= 0`) to disable the cap entirely - every
+  /// entry ever recorded is kept on disk and included in exports. Only do this
+  /// if you're also clearing logs periodically yourself, since nothing else
+  /// will bound the file size.
   final int maxEntriesPerType;
 
   /// Whether headers, query parameters and request/response bodies are saved
@@ -62,5 +67,13 @@ class LogPersistenceConfig {
   /// Maximum number of characters kept per entry's `details` column. Bodies
   /// longer than this are truncated (with a `…(truncated)` marker) so a single
   /// large response can't bloat the log file or the exported CSV.
+  ///
+  /// Pass [unlimited] (or any value `<= 0`) to keep bodies in full, however
+  /// large - useful when you need complete request/response payloads in
+  /// exports and are prepared for correspondingly larger log files.
   final int maxDetailsLength;
+
+  /// Sentinel for [maxEntriesPerType] and [maxDetailsLength] meaning "no
+  /// limit". Equivalent to passing `0`, but self-documenting at the call site.
+  static const int unlimited = 0;
 }
