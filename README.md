@@ -506,6 +506,8 @@ InspectorLogger.log('Token refreshed', level: DeveloperLogLevel.info, tag: 'Auth
 - They're saved to disk like any other category once **Custom developer logs** is switched on in the storage dialog (or via `defaultTypes: {PersistedLogType.developerLog}`).
 - `InspectorLogger.enabled = false` turns every call into a no-op, e.g. for release builds. `DeveloperLogController.entries` is a `ValueListenable` if you want to read the log yourself.
 
+For a full usage guide (more examples, the saved/exported format, reading logs from code), see [DEVELOPER_LOGS.md](DEVELOPER_LOGS.md).
+
 ---
 
 ## Filtering & search

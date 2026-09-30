@@ -71,20 +71,25 @@ class _FiltersDialogState extends State<FiltersDialog> {
             const SizedBox(height: 20.0),
             _sectionLabel('Type', subtitleColor),
             const SizedBox(height: 8.0),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 8.0,
-              children: [
-                _typeChip(ItemTypeFilter.all, 'All', isDarkMode),
-                _typeChip(ItemTypeFilter.http, 'HTTP', isDarkMode),
-                _typeChip(ItemTypeFilter.sse, 'SSE', isDarkMode),
-                _typeChip(
-                  ItemTypeFilter.firebaseMessaging,
-                  'Firebase',
-                  isDarkMode,
-                ),
-                _typeChip(ItemTypeFilter.developerLog, 'Logs', isDarkMode),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _typeChip(ItemTypeFilter.all, 'All', isDarkMode),
+                  const SizedBox(width: 8.0),
+                  _typeChip(ItemTypeFilter.http, 'HTTP', isDarkMode),
+                  const SizedBox(width: 8.0),
+                  _typeChip(ItemTypeFilter.sse, 'SSE', isDarkMode),
+                  const SizedBox(width: 8.0),
+                  _typeChip(
+                    ItemTypeFilter.firebaseMessaging,
+                    'Firebase',
+                    isDarkMode,
+                  ),
+                  const SizedBox(width: 8.0),
+                  _typeChip(ItemTypeFilter.developerLog, 'Logs', isDarkMode),
+                ],
+              ),
             ),
             const SizedBox(height: 20.0),
             _sectionLabel('Method', subtitleColor),
