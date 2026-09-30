@@ -208,5 +208,7 @@ String logTypeDescription(PersistedLogType type) {
       return 'Firebase Messaging events';
     case PersistedLogType.files:
       return 'File loads (images, PDFs, ...)';
+    case PersistedLogType.developerLog:
+      return 'Custom developer logs';
   }
 }

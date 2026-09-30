@@ -91,6 +91,7 @@ class InspectorController extends ChangeNotifier {
   SseConnectionLog? _selectedSseConnection;
   FirebaseMessagingEvent? _selectedFirebaseMessagingEvent;
   FileRequestDetails? _selectedFile;
+  DeveloperLogEntry? _selectedDeveloperLog;
 
   // Bumped whenever _requestsList is mutated, used to cache filteredRequestsList
   // so it isn't recomputed on every unrelated notifyListeners() (e.g. dark mode toggle).
@@ -134,6 +135,8 @@ class InspectorController extends ChangeNotifier {
 
   FileRequestDetails? get selectedFile => _selectedFile;
 
+  DeveloperLogEntry? get selectedDeveloperLog => _selectedDeveloperLog;
+
   bool get isSearchVisible => _isSearchVisible;
 
   String get searchQuery => _searchQuery;
@@ -169,7 +172,8 @@ class InspectorController extends ChangeNotifier {
     }
 
     if (_filterItemType == ItemTypeFilter.sse ||
-        _filterItemType == ItemTypeFilter.firebaseMessaging) {
+        _filterItemType == ItemTypeFilter.firebaseMessaging ||
+        _filterItemType == ItemTypeFilter.developerLog) {
       _cachedFilteredList = const [];
       _cachedFilterKey = key;
       return _cachedFilteredList!;
@@ -216,11 +220,13 @@ class InspectorController extends ChangeNotifier {
         _selectedSseConnection == null &&
         _selectedFirebaseMessagingEvent == null &&
         _selectedFile == null &&
+        _selectedDeveloperLog == null &&
         _selectedTab == 1) return;
     _selectedRequest = value;
     _selectedSseConnection = null;
     _selectedFirebaseMessagingEvent = null;
     _selectedFile = null;
+    _selectedDeveloperLog = null;
     _selectedTab = 1;
     _updateTotalMatches();
     notifyListeners();
@@ -231,11 +237,13 @@ class InspectorController extends ChangeNotifier {
         _selectedRequest == null &&
         _selectedFirebaseMessagingEvent == null &&
         _selectedFile == null &&
+        _selectedDeveloperLog == null &&
         _selectedTab == 1) return;
     _selectedSseConnection = connection;
     _selectedRequest = null;
     _selectedFirebaseMessagingEvent = null;
     _selectedFile = null;
+    _selectedDeveloperLog = null;
     _selectedTab = 1;
     notifyListeners();
   }
@@ -245,11 +253,13 @@ class InspectorController extends ChangeNotifier {
         _selectedRequest == null &&
         _selectedSseConnection == null &&
         _selectedFile == null &&
+        _selectedDeveloperLog == null &&
         _selectedTab == 1) return;
     _selectedFirebaseMessagingEvent = event;
     _selectedRequest = null;
     _selectedSseConnection = null;
     _selectedFile = null;
+    _selectedDeveloperLog = null;
     _selectedTab = 1;
     notifyListeners();
   }
@@ -259,11 +269,29 @@ class InspectorController extends ChangeNotifier {
         _selectedRequest == null &&
         _selectedSseConnection == null &&
         _selectedFirebaseMessagingEvent == null &&
+        _selectedDeveloperLog == null &&
         _selectedTab == 1) return;
     _selectedFile = file;
     _selectedRequest = null;
     _selectedSseConnection = null;
     _selectedFirebaseMessagingEvent = null;
+    _selectedDeveloperLog = null;
+    _selectedTab = 1;
+    notifyListeners();
+  }
+
+  void selectDeveloperLog(DeveloperLogEntry entry) {
+    if (_selectedDeveloperLog?.id == entry.id &&
+        _selectedRequest == null &&
+        _selectedSseConnection == null &&
+        _selectedFirebaseMessagingEvent == null &&
+        _selectedFile == null &&
+        _selectedTab == 1) return;
+    _selectedDeveloperLog = entry;
+    _selectedRequest = null;
+    _selectedSseConnection = null;
+    _selectedFirebaseMessagingEvent = null;
+    _selectedFile = null;
     _selectedTab = 1;
     notifyListeners();
   }
@@ -468,6 +496,49 @@ class InspectorController extends ChangeNotifier {
         ..writeln()
         ..writeln('=====================[Data]========================')
         ..writeln(event.dataPretty);
+    }
+
+    SharePlus.instance.share(
+      ShareParams(
+        text: buffer.toString(),
+        sharePositionOrigin: sharePositionOrigin,
+      ),
+    );
+  }
+
+  /// Shares the selected developer log entry directly to Slack (or the
+  /// platform share sheet) as a plain, human-readable log entry.
+  void shareSelectedDeveloperLog({Rect? sharePositionOrigin}) {
+    final entry = _selectedDeveloperLog!;
+    final timeText = InspectorHelper.extractTimeText(entry.time);
+
+    final buffer = StringBuffer()
+      ..writeln('================[Developer Log]=================')
+      ..writeln('Level: ${entry.level.label}')
+      ..writeln('Logged at: $timeText');
+    if (entry.tag != null) buffer.writeln('Tag: ${entry.tag}');
+    buffer
+      ..writeln()
+      ..writeln('===================[Message]====================')
+      ..writeln(entry.message);
+
+    if (entry.data != null) {
+      buffer
+        ..writeln()
+        ..writeln('=====================[Data]=====================')
+        ..writeln(entry.dataPretty);
+    }
+    if (entry.error != null) {
+      buffer
+        ..writeln()
+        ..writeln('====================[Error]=====================')
+        ..writeln(entry.error);
+    }
+    if (entry.stackTrace != null) {
+      buffer
+        ..writeln()
+        ..writeln('=================[Stack trace]==================')
+        ..writeln(entry.stackTrace);
     }
 
     SharePlus.instance.share(

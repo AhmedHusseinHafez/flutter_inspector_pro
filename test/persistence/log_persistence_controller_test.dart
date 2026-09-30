@@ -113,6 +113,33 @@ void main() {
       expect(entries.single.durationMs, 250);
     });
 
+    test('persists developer logs with level, tag and data', () async {
+      await controller.init(
+        const LogPersistenceConfig(
+          askOnFirstOpen: false,
+          defaultTypes: {PersistedLogType.developerLog},
+        ),
+        directory: tempDir,
+      );
+
+      controller.recordDeveloperLog(DeveloperLogEntry(
+        message: 'Checkout started',
+        level: DeveloperLogLevel.warning,
+        tag: 'Cart',
+        data: {'items': 3},
+        error: 'out of stock',
+      ));
+      await controller.flush();
+
+      final entry = (await controller.readSavedEntries()).single;
+      expect(entry.type, PersistedLogType.developerLog);
+      expect(entry.name, 'Checkout started');
+      expect(entry.method, 'WARNING');
+      expect(entry.url, 'Cart');
+      expect(entry.error, 'out of stock');
+      expect(entry.details, contains('"items":3'));
+    });
+
     test('passing defaultTypes counts as an answered prompt', () async {
       await controller.init(
         const LogPersistenceConfig(

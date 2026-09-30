@@ -3,13 +3,15 @@
 ///
 /// These intentionally mirror the in-memory log sinks: [InspectorController]'s
 /// request list (`http`), [SseLogController] (`sse`),
-/// [FirebaseMessagingLogController] (`firebaseMessaging`) and
-/// [FileLogController] (`files`).
+/// [FirebaseMessagingLogController] (`firebaseMessaging`),
+/// [FileLogController] (`files`) and [DeveloperLogController]
+/// (`developerLog`).
 enum PersistedLogType {
   http('HTTP', 'http'),
   sse('SSE', 'sse'),
   firebaseMessaging('Firebase', 'firebase_messaging'),
-  files('Files', 'files');
+  files('Files', 'files'),
+  developerLog('Logs', 'developer_logs');
 
   const PersistedLogType(this.label, this.fileName);
 

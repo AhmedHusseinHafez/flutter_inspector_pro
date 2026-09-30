@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:requests_inspector/src/filters_dialog.dart';
 import 'package:requests_inspector/src/shared_widgets/api_intelligence_tab.dart';
 import 'package:requests_inspector/src/shared_widgets/capture_settings_dialog.dart';
+import 'package:requests_inspector/src/shared_widgets/developer_log_details_page.dart';
+import 'package:requests_inspector/src/shared_widgets/developer_log_item.dart';
 import 'package:requests_inspector/src/shared_widgets/empty_state.dart';
 import 'package:requests_inspector/src/shared_widgets/firebase_messaging_details_page.dart';
 import 'package:requests_inspector/src/shared_widgets/firebase_messaging_item.dart';
@@ -124,6 +126,7 @@ class Inspector extends StatelessWidget {
                     SseLogController.clear();
                     FileLogController.clear();
                     FirebaseMessagingLogController.clear();
+                    DeveloperLogController.clear();
                     ApiIntelligenceController.instance.clear();
                   },
                 );
@@ -371,13 +374,24 @@ class Inspector extends StatelessWidget {
                         isDarkMode: isDarkMode,
                       );
                     }
-                    return Expanded(
-                      child: EmptyState(
-                        icon: Icons.touch_app_outlined,
-                        title: 'Nothing selected',
-                        message: 'Select an item to view its details here.',
-                        isDarkMode: isDarkMode,
-                      ),
+                    return Selector<InspectorController, DeveloperLogEntry?>(
+                      selector: (_, c) => c.selectedDeveloperLog,
+                      builder: (context, selectedLog, _____) {
+                        if (selectedLog != null) {
+                          return DeveloperLogDetailsPage(
+                            entry: selectedLog,
+                            isDarkMode: isDarkMode,
+                          );
+                        }
+                        return Expanded(
+                          child: EmptyState(
+                            icon: Icons.touch_app_outlined,
+                            title: 'Nothing selected',
+                            message: 'Select an item to view its details here.',
+                            isDarkMode: isDarkMode,
+                          ),
+                        );
+                      },
                     );
                   },
                 );
@@ -501,7 +515,8 @@ class Inspector extends StatelessWidget {
           c.selectedTab == 1 &&
           (c.selectedRequest != null ||
               c.selectedSseConnection != null ||
-              c.selectedFirebaseMessagingEvent != null),
+              c.selectedFirebaseMessagingEvent != null ||
+              c.selectedDeveloperLog != null),
       builder: (context, showButtons, _) {
         if (!showButtons) return const SizedBox();
         return Column(
@@ -580,6 +595,10 @@ class Inspector extends StatelessWidget {
           controller.shareSelectedFirebaseMessagingEvent(
             sharePositionOrigin: sharePositionOrigin,
           );
+        } else if (controller.selectedDeveloperLog != null) {
+          controller.shareSelectedDeveloperLog(
+            sharePositionOrigin: sharePositionOrigin,
+          );
         }
       },
     );
@@ -593,149 +612,179 @@ class Inspector extends StatelessWidget {
           return ValueListenableBuilder<List<FirebaseMessagingEvent>>(
             valueListenable: FirebaseMessagingLogController.events,
             builder: (context, _, __) {
-              return Selector<InspectorController, String>(
-                selector: (_, controller) => controller.requestsListCacheKey,
-                builder: (context, _, __) {
-                  final filterItemType = InspectorController().filterItemType;
-                  final requests = InspectorController().filteredRequestsList;
-                  final sseConnections =
-                      filterItemType == ItemTypeFilter.http ||
-                              filterItemType == ItemTypeFilter.firebaseMessaging
-                          ? const <SseConnectionLog>[]
-                          : SseLogController.connections;
-                  final fcmEvents = filterItemType == ItemTypeFilter.http ||
-                          filterItemType == ItemTypeFilter.sse
-                      ? const <FirebaseMessagingEvent>[]
-                      : FirebaseMessagingLogController.events.value;
-                  final items =
-                      _TimelineItem.merge(requests, sseConnections, fcmEvents);
-
-                  if (items.isEmpty) {
-                    final filtersApplied =
-                        InspectorController().areAnyFiltersApplied;
-                    return EmptyState(
-                      icon: filtersApplied
-                          ? Icons.filter_alt_off_outlined
-                          : Icons.inbox_outlined,
-                      title: filtersApplied
-                          ? 'No matching requests'
-                          : 'No requests yet',
-                      message: filtersApplied
-                          ? 'Try adjusting or clearing your filters to see more results.'
-                          : 'Requests made by your app will appear here as they happen.',
-                      isDarkMode: isDarkMode,
-                    );
-                  }
-
-                  final rows = _groupByDay(items);
-
-                  return Selector<InspectorController, RequestDetails?>(
-                    selector: (_, controller) => controller.selectedRequest,
-                    builder: (context, selectedRequest, _) {
-                      final selectedSseId =
-                          InspectorController().selectedSseConnection?.id;
-                      final selectedFcmId = InspectorController()
-                          .selectedFirebaseMessagingEvent
-                          ?.id;
-                      return ListView.builder(
-                        padding:
-                            const EdgeInsets.fromLTRB(12.0, 4.0, 12.0, 12.0),
-                        itemCount: rows.length,
-                        itemBuilder: (context, index) {
-                          final row = rows[index];
-                          if (row is String) {
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                top: index == 0 ? 0.0 : 16.0,
-                                bottom: 8.0,
-                              ),
-                              child: Text(
-                                row,
-                                style: TextStyle(
-                                  fontSize: 12.0,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.6,
-                                  color: isDarkMode
-                                      ? Colors.white38
-                                      : Colors.black38,
-                                ),
-                              ),
-                            );
-                          }
-
-                          final item = row as _TimelineItem;
-                          final fcmEvent = item.firebaseMessagingEvent;
-                          if (fcmEvent != null) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Dismissible(
-                                key: ValueKey(fcmEvent.id),
-                                direction: DismissDirection.endToStart,
-                                background: _deleteBackground(),
-                                onDismissed: (_) =>
-                                    FirebaseMessagingLogController.remove(
-                                        fcmEvent),
-                                child: FirebaseMessagingItemWidget(
-                                  event: fcmEvent,
-                                  isSelected: fcmEvent.id == selectedFcmId,
-                                  isDarkMode: isDarkMode,
-                                  onTap: () => InspectorController()
-                                      .selectFirebaseMessagingEvent(fcmEvent),
-                                ),
-                              ),
-                            );
-                          }
-                          final sseConnection = item.sseConnection;
-                          if (sseConnection != null) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Dismissible(
-                                key: ValueKey(sseConnection.id),
-                                direction: DismissDirection.endToStart,
-                                background: _deleteBackground(),
-                                onDismissed: (_) =>
-                                    SseLogController.removeConnection(
-                                        sseConnection),
-                                child: SseConnectionItemWidget(
-                                  connection: sseConnection,
-                                  isSelected: sseConnection.id == selectedSseId,
-                                  isDarkMode: isDarkMode,
-                                  onTap: () => InspectorController()
-                                      .selectSseConnection(sseConnection),
-                                ),
-                              ),
-                            );
-                          }
-                          final request = item.request!;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Dismissible(
-                              key: ValueKey(request.id),
-                              direction: DismissDirection.endToStart,
-                              background: _deleteBackground(),
-                              onDismissed: (_) =>
-                                  InspectorController().removeRequest(request),
-                              child: RequestItemWidget(
-                                request: request,
-                                isSelected: selectedRequest == request,
-                                isDarkMode: isDarkMode,
-                                onTap: (itemContext, tappedRequest) {
-                                  InspectorController().selectedRequest =
-                                      tappedRequest;
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
+              return ValueListenableBuilder<List<DeveloperLogEntry>>(
+                valueListenable: DeveloperLogController.entries,
+                builder: (context, _, __) =>
+                    _buildTimeline(context, isDarkMode),
               );
             },
           );
         },
       ),
+    );
+  }
+
+  Widget _buildTimeline(BuildContext context, bool isDarkMode) {
+    return Selector<InspectorController, String>(
+      selector: (_, controller) => controller.requestsListCacheKey,
+      builder: (context, _, __) {
+        final filterItemType = InspectorController().filterItemType;
+        final requests = InspectorController().filteredRequestsList;
+        final sseConnections = filterItemType == ItemTypeFilter.all ||
+                filterItemType == ItemTypeFilter.sse
+            ? SseLogController.connections
+            : const <SseConnectionLog>[];
+        final fcmEvents = filterItemType == ItemTypeFilter.all ||
+                filterItemType == ItemTypeFilter.firebaseMessaging
+            ? FirebaseMessagingLogController.events.value
+            : const <FirebaseMessagingEvent>[];
+        final searchQuery = InspectorController().searchUrlQuery;
+        final developerLogs = filterItemType == ItemTypeFilter.all ||
+                filterItemType == ItemTypeFilter.developerLog
+            ? DeveloperLogController.entries.value
+                .where((e) => e.matches(searchQuery))
+                .toList(growable: false)
+            : const <DeveloperLogEntry>[];
+        final items = _TimelineItem.merge(
+          requests,
+          sseConnections,
+          fcmEvents,
+          developerLogs,
+        );
+
+        if (items.isEmpty) {
+          final filtersApplied = InspectorController().areAnyFiltersApplied;
+          return EmptyState(
+            icon: filtersApplied
+                ? Icons.filter_alt_off_outlined
+                : Icons.inbox_outlined,
+            title: filtersApplied ? 'No matching requests' : 'No requests yet',
+            message: filtersApplied
+                ? 'Try adjusting or clearing your filters to see more results.'
+                : 'Requests made by your app will appear here as they happen.',
+            isDarkMode: isDarkMode,
+          );
+        }
+
+        final rows = _groupByDay(items);
+
+        return Selector<InspectorController, RequestDetails?>(
+          selector: (_, controller) => controller.selectedRequest,
+          builder: (context, selectedRequest, _) {
+            final selectedSseId =
+                InspectorController().selectedSseConnection?.id;
+            final selectedFcmId =
+                InspectorController().selectedFirebaseMessagingEvent?.id;
+            final selectedLogId =
+                InspectorController().selectedDeveloperLog?.id;
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12.0, 4.0, 12.0, 12.0),
+              itemCount: rows.length,
+              itemBuilder: (context, index) {
+                final row = rows[index];
+                if (row is String) {
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      top: index == 0 ? 0.0 : 16.0,
+                      bottom: 8.0,
+                    ),
+                    child: Text(
+                      row,
+                      style: TextStyle(
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        color: isDarkMode ? Colors.white38 : Colors.black38,
+                      ),
+                    ),
+                  );
+                }
+
+                final item = row as _TimelineItem;
+                final developerLog = item.developerLog;
+                if (developerLog != null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Dismissible(
+                      key: ValueKey(developerLog.id),
+                      direction: DismissDirection.endToStart,
+                      background: _deleteBackground(),
+                      onDismissed: (_) =>
+                          DeveloperLogController.remove(developerLog),
+                      child: DeveloperLogItemWidget(
+                        entry: developerLog,
+                        isSelected: developerLog.id == selectedLogId,
+                        isDarkMode: isDarkMode,
+                        onTap: () => InspectorController()
+                            .selectDeveloperLog(developerLog),
+                      ),
+                    ),
+                  );
+                }
+                final fcmEvent = item.firebaseMessagingEvent;
+                if (fcmEvent != null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Dismissible(
+                      key: ValueKey(fcmEvent.id),
+                      direction: DismissDirection.endToStart,
+                      background: _deleteBackground(),
+                      onDismissed: (_) =>
+                          FirebaseMessagingLogController.remove(fcmEvent),
+                      child: FirebaseMessagingItemWidget(
+                        event: fcmEvent,
+                        isSelected: fcmEvent.id == selectedFcmId,
+                        isDarkMode: isDarkMode,
+                        onTap: () => InspectorController()
+                            .selectFirebaseMessagingEvent(fcmEvent),
+                      ),
+                    ),
+                  );
+                }
+                final sseConnection = item.sseConnection;
+                if (sseConnection != null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Dismissible(
+                      key: ValueKey(sseConnection.id),
+                      direction: DismissDirection.endToStart,
+                      background: _deleteBackground(),
+                      onDismissed: (_) =>
+                          SseLogController.removeConnection(sseConnection),
+                      child: SseConnectionItemWidget(
+                        connection: sseConnection,
+                        isSelected: sseConnection.id == selectedSseId,
+                        isDarkMode: isDarkMode,
+                        onTap: () => InspectorController()
+                            .selectSseConnection(sseConnection),
+                      ),
+                    ),
+                  );
+                }
+                final request = item.request!;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Dismissible(
+                    key: ValueKey(request.id),
+                    direction: DismissDirection.endToStart,
+                    background: _deleteBackground(),
+                    onDismissed: (_) =>
+                        InspectorController().removeRequest(request),
+                    child: RequestItemWidget(
+                      request: request,
+                      isSelected: selectedRequest == request,
+                      isDarkMode: isDarkMode,
+                      onTap: (itemContext, tappedRequest) {
+                        InspectorController().selectedRequest = tappedRequest;
+                      },
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -839,7 +888,7 @@ class __SearchFieldState extends State<_SearchField> {
         fontSize: 14.0,
       ),
       decoration: InputDecoration(
-        hintText: 'Search by URL',
+        hintText: 'Search by URL or log message',
         hintStyle: TextStyle(
           color: widget.isDarkMode ? Colors.white38 : Colors.black38,
         ),
@@ -897,25 +946,28 @@ class __SearchFieldState extends State<_SearchField> {
 }
 
 /// A single row in the merged "All" timeline: an HTTP [RequestDetails], an
-/// [SseConnectionLog], or a [FirebaseMessagingEvent], sorted together by
-/// time (newest first).
+/// [SseConnectionLog], a [FirebaseMessagingEvent], or a [DeveloperLogEntry],
+/// sorted together by time (newest first).
 class _TimelineItem {
   const _TimelineItem._({
     this.request,
     this.sseConnection,
     this.firebaseMessagingEvent,
+    this.developerLog,
     required this.time,
   });
 
   final RequestDetails? request;
   final SseConnectionLog? sseConnection;
   final FirebaseMessagingEvent? firebaseMessagingEvent;
+  final DeveloperLogEntry? developerLog;
   final DateTime time;
 
   static List<_TimelineItem> merge(
     List<RequestDetails> requests,
     List<SseConnectionLog> sseConnections,
     List<FirebaseMessagingEvent> firebaseMessagingEvents,
+    List<DeveloperLogEntry> developerLogs,
   ) {
     final items = <_TimelineItem>[
       ...requests.map(
@@ -926,6 +978,9 @@ class _TimelineItem {
       ),
       ...firebaseMessagingEvents.map(
         (e) => _TimelineItem._(firebaseMessagingEvent: e, time: e.receivedAt),
+      ),
+      ...developerLogs.map(
+        (e) => _TimelineItem._(developerLog: e, time: e.time),
       ),
     ];
     items.sort((a, b) => b.time.compareTo(a.time));

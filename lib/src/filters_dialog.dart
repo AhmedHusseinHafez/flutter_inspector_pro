@@ -71,19 +71,19 @@ class _FiltersDialogState extends State<FiltersDialog> {
             const SizedBox(height: 20.0),
             _sectionLabel('Type', subtitleColor),
             const SizedBox(height: 8.0),
-            Row(
+            Wrap(
+              spacing: 8.0,
+              runSpacing: 8.0,
               children: [
                 _typeChip(ItemTypeFilter.all, 'All', isDarkMode),
-                const SizedBox(width: 8.0),
                 _typeChip(ItemTypeFilter.http, 'HTTP', isDarkMode),
-                const SizedBox(width: 8.0),
                 _typeChip(ItemTypeFilter.sse, 'SSE', isDarkMode),
-                const SizedBox(width: 8.0),
                 _typeChip(
                   ItemTypeFilter.firebaseMessaging,
                   'Firebase',
                   isDarkMode,
                 ),
+                _typeChip(ItemTypeFilter.developerLog, 'Logs', isDarkMode),
               ],
             ),
             const SizedBox(height: 20.0),
@@ -232,33 +232,30 @@ class _FiltersDialogState extends State<FiltersDialog> {
 
   Widget _typeChip(ItemTypeFilter type, String label, bool isDarkMode) {
     final isSelected = _itemType == type;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _itemType = type),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10.0),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
+    return GestureDetector(
+      onTap: () => setState(() => _itemType = type),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? InspectorTheme.primary
+              : InspectorTheme.surface(isDarkMode),
+          borderRadius: BorderRadius.circular(InspectorTheme.radius),
+          border: Border.all(
             color: isSelected
                 ? InspectorTheme.primary
-                : InspectorTheme.surface(isDarkMode),
-            borderRadius: BorderRadius.circular(InspectorTheme.radius),
-            border: Border.all(
-              color: isSelected
-                  ? InspectorTheme.primary
-                  : InspectorTheme.border(isDarkMode),
-            ),
+                : InspectorTheme.border(isDarkMode),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13.0,
-              fontWeight: FontWeight.w600,
-              color: isSelected
-                  ? Colors.white
-                  : (isDarkMode ? Colors.white70 : Colors.black87),
-            ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13.0,
+            fontWeight: FontWeight.w600,
+            color: isSelected
+                ? Colors.white
+                : (isDarkMode ? Colors.white70 : Colors.black87),
           ),
         ),
       ),

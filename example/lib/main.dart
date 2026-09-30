@@ -54,6 +54,7 @@ class _MyAppState extends State<MyApp> {
       fetchPostsUsingHttpClient();
       _demoQueryMethod();
       _demoSseLogs();
+      _demoDeveloperLogs();
       _demoFileLogging();
     });
   }
@@ -161,6 +162,26 @@ class _MyAppState extends State<MyApp> {
       SseLogController.log('event: order_filled {"id":42}');
       SseLogController.log('CLOSED');
     });
+  }
+
+  /// Demoes custom developer logs: each `InspectorLogger` call shows up in
+  /// the Inspector's "All" tab next to the network traffic.
+  void _demoDeveloperLogs() {
+    InspectorLogger.info('App started', tag: 'Lifecycle');
+    InspectorLogger.debug('Loaded posts screen', tag: 'Nav', data: {
+      'route': '/posts',
+      'fromDeepLink': false,
+    });
+    try {
+      throw const FormatException('Unexpected price format');
+    } catch (e, s) {
+      InspectorLogger.error(
+        'Failed to parse price',
+        tag: 'Prices',
+        error: e,
+        stackTrace: s,
+      );
+    }
   }
 }
 

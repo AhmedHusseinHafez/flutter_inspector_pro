@@ -164,6 +164,7 @@ void main() {
 
       expect(find.text('Export CSV & share'), findsOneWidget);
 
+      await tester.ensureVisible(find.text('JSON'));
       await tester.tap(find.text('JSON'));
       await tester.pump();
 

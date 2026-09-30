@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../enums/developer_log_level_enum.dart';
 import '../enums/requests_methods.dart';
 
 /// Central color identity for the Inspector UI, inspired by Apidog's
@@ -37,6 +38,24 @@ class InspectorTheme {
   static const Color methodWs = Color(0xFF0BA5EC);
   static const Color sse = Color(0xFF0BA5EC);
   static const Color firebaseMessaging = Color(0xFFF7941D);
+
+  // Developer log level colors.
+  static const Color logVerbose = Color(0xFF98A2B3);
+  static const Color logDebug = Color(0xFF667085);
+  static const Color logInfo = Color(0xFF2E90FA);
+  static const Color logWarning = Color(0xFFF79009);
+  static const Color logError = Color(0xFFF04438);
+
+  static const Map<DeveloperLogLevel, Color> _logLevelColors = {
+    DeveloperLogLevel.verbose: logVerbose,
+    DeveloperLogLevel.debug: logDebug,
+    DeveloperLogLevel.info: logInfo,
+    DeveloperLogLevel.warning: logWarning,
+    DeveloperLogLevel.error: logError,
+  };
+
+  static Color colorForLogLevel(DeveloperLogLevel level) =>
+      _logLevelColors[level] ?? logDebug;
 
   // Status badge colors
   static const Color statusOk = Color(0xFF12B76A);

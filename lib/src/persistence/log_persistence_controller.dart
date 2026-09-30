@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../developer_log/developer_log_entry.dart';
 import '../file_request_details.dart';
 import '../firebase_messaging/firebase_messaging_event.dart';
 import '../request_details.dart';
@@ -277,6 +278,22 @@ class LogPersistenceController {
       error: details.error,
       details: _detailsJson(<String, dynamic>{
         'contentType': details.contentType,
+      }),
+    ));
+  }
+
+  void recordDeveloperLog(DeveloperLogEntry entry) {
+    if (!_isRecording(PersistedLogType.developerLog)) return;
+    _add(PersistedLogEntry(
+      type: PersistedLogType.developerLog,
+      time: entry.time,
+      name: entry.message,
+      method: entry.level.label,
+      url: entry.tag,
+      error: entry.error?.toString(),
+      details: _detailsJson(<String, dynamic>{
+        'data': entry.data,
+        'stackTrace': entry.stackTrace?.toString(),
       }),
     ));
   }
