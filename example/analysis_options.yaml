@@ -42,3 +42,5 @@ analyzer:
   - '**/messages_all.dart/**'
   - '**/messages_ar.dart/**'
   - '**/messages_en.dart/**'
+  - android/**
+  - ios/**
